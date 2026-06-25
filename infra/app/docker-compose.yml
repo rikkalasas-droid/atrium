@@ -1,0 +1,33 @@
+name: atrium-app
+
+# Attach to the SAME network the Spark stack created, so the app reaches
+# postgres / valkey / opensearch / minio by service name.
+networks:
+  atrium:
+    external: true
+    name: atrium
+
+services:
+  api:
+    image: localhost:5000/atrium-api:latest
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=atrium;Username=atrium;Password=${POSTGRES_PASSWORD}"
+      Redis__ConnectionString: "valkey:6379,password=${REDIS_PASSWORD}"
+      OpenSearch__Url: "https://opensearch:9200"
+      S3__Endpoint: "http://minio:9000"
+      S3__AccessKey: "atrium"
+      S3__SecretKey: "${MINIO_PASSWORD}"
+      ATRIUM_VERSION: "0.1.0-dev"
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [atrium]
+
+  web:
+    image: localhost:5000/atrium-web:latest
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - "127.0.0.1:8081:80"
+    networks: [atrium]

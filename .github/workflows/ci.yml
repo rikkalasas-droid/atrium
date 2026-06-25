@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: localhost:5000
+
+jobs:
+  build:
+    runs-on: [self-hosted, spark, docker]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute short SHA
+        id: vars
+        run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push API image
+        run: |
+          docker build \
+            -t "$REGISTRY/atrium-api:${{ steps.vars.outputs.sha }}" \
+            -t "$REGISTRY/atrium-api:latest" \
+            backend/Atrium.Api
+          docker push "$REGISTRY/atrium-api:${{ steps.vars.outputs.sha }}"
+          docker push "$REGISTRY/atrium-api:latest"
+
+      - name: Build & push Web image
+        run: |
+          docker build \
+            -t "$REGISTRY/atrium-web:${{ steps.vars.outputs.sha }}" \
+            -t "$REGISTRY/atrium-web:latest" \
+            frontend
+          docker push "$REGISTRY/atrium-web:${{ steps.vars.outputs.sha }}"
+          docker push "$REGISTRY/atrium-web:latest"
+
+  deploy:
+    needs: build
+    runs-on: [self-hosted, spark, docker]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Redeploy on Spark
+        run: |
+          mkdir -p /opt/atrium/app
+          cp infra/app/docker-compose.yml /opt/atrium/app/docker-compose.yml
+          cd /opt/atrium/app
+          docker compose pull
+          docker compose up -d

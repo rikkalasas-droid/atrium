@@ -9,12 +9,8 @@ body {
   color: #1A1A2E;
 }
 
-/* free-placement grid: fixed 6 columns, tiles positioned by explicit col/row */
-.atr-grid {
-  display: grid; gap: 14px; position: relative;
-  grid-template-columns: repeat(6, minmax(116px, 1fr));
-  grid-auto-rows: 110px;
-}
+/* free-placement canvas: tiles are absolutely positioned (fractional sizes) */
+.atr-grid { position: relative; width: 100%; min-height: 320px; }
 
 .atr-tile { transition: box-shadow .18s ease, transform .18s ease; }
 @media (prefers-reduced-motion: no-preference) {

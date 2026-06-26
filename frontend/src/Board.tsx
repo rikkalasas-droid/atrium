@@ -25,6 +25,13 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
   const els = useRef(new Map<string, HTMLElement>())
   const drag = useRef<{ uid: string; offX: number; offY: number } | null>(null)
   const rsz = useRef<{ uid: string; startX: number; startY: number; w: number; h: number; cellW: number } | null>(null)
+  const [gw, setGw] = useState(0)   // measured canvas width -> cell size for fractional tiles
+  useEffect(() => {
+    const m = () => { if (gridRef.current) setGw(gridRef.current.clientWidth) }
+    m(); const id = setTimeout(m, 0)
+    window.addEventListener('resize', m)
+    return () => { window.removeEventListener('resize', m); clearTimeout(id) }
+  }, [loading, arrange])
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -99,15 +106,27 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
   const onResizeMove = (e: React.PointerEvent) => {
     const r = rsz.current; if (!r) return
     const t = tiles.find((x) => x.uid === r.uid); if (!t) return
-    const dw = Math.round((e.clientX - r.startX) / (r.cellW + GAP))
-    const dh = Math.round((e.clientY - r.startY) / (CELL_H + GAP))
-    const w = Math.max(1, Math.min(r.w + dw, COLS - (t.x ?? 1) + 1))
-    const h = Math.max(1, r.h + dh)
+    const dw = (e.clientX - r.startX) / (r.cellW + GAP)
+    const dh = (e.clientY - r.startY) / (CELL_H + GAP)
+    const maxW = COLS - ((t.x ?? 1) - 1)
+    const w = Math.max(1, Math.min(Math.round((r.w + dw) * 10) / 10, maxW))   // 0.1 steps
+    const h = Math.max(1, Math.round((r.h + dh) * 10) / 10)
     if (w !== t.w || h !== t.h) patch(r.uid, { w, h })
   }
   const onResizeUp = () => { if (rsz.current) { rsz.current = null; setActive(null) } }
 
   const selected = tiles.find((t) => t.uid === selectedUid) || null
+
+  // fractional layout: cell width from measured canvas; tiles sized in px
+  const CW = gw > 0 ? (gw - GAP * (COLS - 1)) / COLS : 150
+  const px = (t: Tile) => ({
+    left: ((t.x ?? 1) - 1) * (CW + GAP),
+    top: ((t.y ?? 1) - 1) * (CELL_H + GAP),
+    width: t.w * CW + (t.w - 1) * GAP,
+    height: t.h * CELL_H + (t.h - 1) * GAP,
+  })
+  const contentH = Math.max(320, ...tiles.map((t) =>
+    ((t.y ?? 1) - 1) * (CELL_H + GAP) + t.h * CELL_H + (t.h - 1) * GAP)) + GAP
 
   const cardBase: React.CSSProperties = {
     position: 'relative', border: `1px solid ${C.line}`, borderRadius: 16, padding: 16, overflow: 'hidden',
@@ -176,9 +195,9 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
               </Section>
               <Section label="Size">
                 <div style={{ display: 'flex', gap: 14 }}>
-                  <Stepper label="W" value={selected.w} min={1} max={COLS - (selected.x ?? 1) + 1}
+                  <Stepper label="W" value={selected.w} min={1} max={COLS - (selected.x ?? 1) + 1} step={0.1}
                     onChange={(v) => patch(selected.uid, { w: v })} />
-                  <Stepper label="H" value={selected.h} min={1} max={8} onChange={(v) => patch(selected.uid, { h: v })} />
+                  <Stepper label="H" value={selected.h} min={1} max={8} step={0.1} onChange={(v) => patch(selected.uid, { h: v })} />
                 </div>
               </Section>
               <button onClick={() => del(selected.uid)} style={{ marginTop: 8, width: '100%', display: 'flex', alignItems: 'center',
@@ -240,7 +259,7 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
             border: '1px solid #FECACA', borderRadius: 12 }}>Couldn’t load the board: {error}</div>}
 
           {!loading && !error && (
-            <div className="atr-grid" ref={gridRef}>
+            <div className="atr-grid" ref={gridRef} style={{ height: contentH }}>
               {tiles.map((tile) => {
                 const isActive = tile.uid === active
                 const isSel = tile.uid === selectedUid && arrange
@@ -254,14 +273,11 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
                     onPointerCancel={onUp}
                     className={`atr-tile ${arrange ? '' : 'canhover'}`}
                     style={{
-                      gridColumn: `${tile.x ?? 1} / span ${tile.w}`,
-                      gridRow: `${tile.y ?? 1} / span ${tile.h}`,
+                      ...cardBase, position: 'absolute', ...px(tile), background: bg,
                       touchAction: arrange ? 'none' : 'auto',
                       cursor: arrange ? (isActive ? 'grabbing' : 'grab') : 'default',
-                      ...cardBase, background: bg,
                       ...(isSel ? { border: `2px solid ${tile.accent}` } : {}),
-                      ...(isActive ? { zIndex: 50, transform: 'scale(1.02)',
-                        boxShadow: '0 18px 50px -12px rgba(26,26,46,.4)' } : {}),
+                      ...(isActive ? { zIndex: 50, boxShadow: '0 18px 50px -12px rgba(26,26,46,.4)' } : {}),
                     }}>
                     <div style={{ position: 'absolute', left: 0, top: 14, width: 3, height: 22, borderRadius: 3, background: tile.accent }} />
                     <div style={{ height: '100%', ...fontStyle(tile.font) }}>
@@ -321,17 +337,18 @@ function pill(activeOn: boolean): React.CSSProperties {
     border: `1px solid ${activeOn ? C.indigo : C.line}`, background: activeOn ? C.isoft : '#fff',
     color: activeOn ? C.indigoDk : C.ink }
 }
-function Stepper({ label, value, min, max, onChange }:
-  { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) {
-  const set = (d: number) => onChange(Math.max(min, Math.min(max, value + d)))
+function Stepper({ label, value, min, max, step = 1, onChange }:
+  { label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void }) {
+  const set = (d: number) => onChange(Math.max(min, Math.min(max, Math.round((value + d) * 10) / 10)))
   const b: React.CSSProperties = { width: 26, height: 26, borderRadius: 7, border: `1px solid ${C.line}`,
     background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1, color: C.ink }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
       <span style={{ fontSize: 12, color: C.soft, width: 12 }}>{label}</span>
-      <button style={b} onClick={() => set(-1)}>−</button>
-      <span style={{ fontSize: 13, fontWeight: 600, width: 16, textAlign: 'center' }}>{value}</span>
-      <button style={b} onClick={() => set(1)}>+</button>
+      <button style={b} onClick={() => set(-step)}>−</button>
+      <span style={{ fontSize: 13, fontWeight: 600, width: 24, textAlign: 'center' }}>
+        {Number.isInteger(value) ? value : value.toFixed(1)}</span>
+      <button style={b} onClick={() => set(step)}>+</button>
     </div>
   )
 }

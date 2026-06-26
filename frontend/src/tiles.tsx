@@ -1,12 +1,13 @@
 import {
   Sparkles, Link2, StickyNote, BarChart3, Calendar, Users,
-  MousePointerClick, Clock, Plus, X,
+  MousePointerClick, Clock, Plus, X, Shapes,
+  Type, Image as ImageIcon, Code2, Minus, ExternalLink,
 } from 'lucide-react'
 import { C, ACCENTS, DISPLAY, UI, hexA } from './theme'
 import type { ApiBlock, BlockInput } from './api'
 
 export type TileKind =
-  | 'banner' | 'links' | 'note' | 'metric' | 'events' | 'people' | 'button' | 'timeline'
+  | 'banner' | 'links' | 'note' | 'metric' | 'events' | 'people' | 'button' | 'timeline' | 'custom'
 
 export type FontCfg = { family?: FontKey; weight?: number; scale?: number }
 
@@ -72,9 +73,42 @@ export const KIND_META: Record<TileKind, { label: string; Icon: any }> = {
   people: { label: 'People', Icon: Users },
   button: { label: 'Buttons', Icon: MousePointerClick },
   timeline: { label: 'Timeline', Icon: Clock },
+  custom: { label: 'Custom', Icon: Shapes },
 }
 
+// ---- freeform elements (can be added to ANY tile) ----
+export type ElKind = 'heading' | 'text' | 'image' | 'embed' | 'link' | 'button' | 'divider'
+export type Element = {
+  id: string
+  t: ElKind
+  text?: string                     // heading/text content, link/button label
+  url?: string                      // image src, embed src, link/button href
+  variant?: 'filled' | 'outline'    // button style
+}
+
+export const ELEMENT_KINDS: { t: ElKind; label: string; Icon: any }[] = [
+  { t: 'heading', label: 'Heading', Icon: Type },
+  { t: 'text', label: 'Text', Icon: StickyNote },
+  { t: 'image', label: 'Image', Icon: ImageIcon },
+  { t: 'embed', label: 'Embed', Icon: Code2 },
+  { t: 'link', label: 'Link', Icon: Link2 },
+  { t: 'button', label: 'Button', Icon: MousePointerClick },
+  { t: 'divider', label: 'Divider', Icon: Minus },
+]
+
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
+
+export function blankEl(t: ElKind): Element {
+  switch (t) {
+    case 'heading': return { id: uid(), t, text: 'Heading' }
+    case 'text': return { id: uid(), t, text: 'Some text…' }
+    case 'image': return { id: uid(), t, url: '' }
+    case 'embed': return { id: uid(), t, url: '' }
+    case 'link': return { id: uid(), t, text: 'Visit link', url: 'https://' }
+    case 'button': return { id: uid(), t, text: 'Button', url: '#', variant: 'filled' }
+    case 'divider': return { id: uid(), t }
+  }
+}
 
 export function blockToTile(b: ApiBlock): Tile {
   let cfg: any = {}
@@ -111,13 +145,15 @@ export function defaultData(kind: TileKind): any {
     case 'people': return { heading: 'People', members: [{ name: 'Add a person', role: '' }] }
     case 'button': return { heading: 'Actions', buttons: [{ label: 'Open', url: '#' }] }
     case 'timeline': return { heading: 'Timeline', items: [['Kickoff', 'Step 1'], ['In progress', 'Step 2'], ['Done', 'Step 3']] }
+    case 'custom': return { heading: 'Custom', elements: [{ id: uid(), t: 'text', text: 'Add anything you like — text, images, embeds, buttons…' }] }
   }
 }
 
 export function newTile(kind: TileKind): Tile {
   const size = kind === 'banner' ? { w: 2, h: 1 }
-    : kind === 'links' || kind === 'events' || kind === 'timeline' ? { w: 1, h: 2 }
-      : { w: 1, h: 1 }
+    : kind === 'custom' ? { w: 2, h: 2 }
+      : kind === 'links' || kind === 'events' || kind === 'timeline' ? { w: 1, h: 2 }
+        : { w: 1, h: 1 }
   const accent = ACCENTS[Math.floor(Math.random() * ACCENTS.length)]
   return { uid: uid(), kind, ...size, accent, data: defaultData(kind) }
 }
@@ -165,12 +201,17 @@ const RemoveX = ({ onClick }: { onClick: () => void }) => (
   </button>
 )
 
-// ---- visual content for a tile, by kind ----
-export function TileBody({ tile, editable, onEdit }:
+// ---- kind-specific content for a tile ----
+function KindBody({ tile, editable, onEdit }:
   { tile: Tile; editable: boolean; onEdit: (patch: any) => void }) {
   const a = tile.accent
   const { Icon } = KIND_META[tile.kind]
   const d = tile.data ?? {}
+
+  if (tile.kind === 'custom') {
+    if (editable) return <Inp value={d.heading ?? ''} bold ph="Title (optional)" onChange={(v) => onEdit({ heading: v })} />
+    return d.heading ? <div style={{ fontSize: 13, fontWeight: 600, color: C.soft, marginBottom: 4 }}>{d.heading}</div> : null
+  }
 
   const Header = ({ children }: { children: any }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
@@ -348,6 +389,122 @@ export function TileBody({ tile, editable, onEdit }:
         ))}
         {editable && <MiniBtn onClick={() => onEdit({ members: [...members, { name: 'New person', role: '' }] })}><Plus size={12} /> Add person</MiniBtn>}
       </div>
+    </div>
+  )
+}
+
+// ---- render one freeform element ----
+function renderEl(el: Element, a: string) {
+  switch (el.t) {
+    case 'heading':
+      return <div style={{ fontFamily: DISPLAY, fontSize: 17, fontWeight: 700, color: C.ink, letterSpacing: -0.2 }}>{el.text}</div>
+    case 'text':
+      return <div style={{ fontSize: 13.5, color: C.ink, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{el.text}</div>
+    case 'image':
+      return el.url
+        ? <img src={el.url} alt="" style={{ width: '100%', borderRadius: 10, display: 'block', objectFit: 'cover' }} />
+        : <div style={{ border: `1px dashed ${C.line}`, borderRadius: 10, padding: 16, fontSize: 12, color: C.faint, textAlign: 'center' }}>No image URL</div>
+    case 'embed':
+      return el.url
+        ? <iframe src={el.url} style={{ width: '100%', height: 200, border: `1px solid ${C.line}`, borderRadius: 10 }} allowFullScreen />
+        : <div style={{ border: `1px dashed ${C.line}`, borderRadius: 10, padding: 16, fontSize: 12, color: C.faint, textAlign: 'center' }}>No embed URL</div>
+    case 'link':
+      return (
+        <a href={el.url || '#'} target="_blank" rel="noreferrer"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: a, fontSize: 13.5, fontWeight: 600, textDecoration: 'none' }}>
+          <ExternalLink size={14} /> {el.text || el.url}
+        </a>
+      )
+    case 'button': {
+      const outline = el.variant === 'outline'
+      return (
+        <a href={el.url || '#'} target="_blank" rel="noreferrer"
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, textDecoration: 'none',
+            background: outline ? 'transparent' : a, color: outline ? a : '#fff',
+            border: outline ? `1.5px solid ${a}` : '1.5px solid transparent',
+            borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 600 }}>
+          <MousePointerClick size={14} /> {el.text}
+        </a>
+      )
+    }
+    case 'divider':
+      return <hr style={{ border: 'none', borderTop: `1px solid ${C.line}`, margin: '2px 0' }} />
+  }
+}
+
+// ---- editor row for one element ----
+function ElEditor({ el, onChange, onRemove }:
+  { el: Element; onChange: (patch: Partial<Element>) => void; onRemove: () => void }) {
+  const { Icon, label } = ELEMENT_KINDS.find((k) => k.t === el.t)!
+  return (
+    <div style={{ border: `1px solid ${C.line}`, borderRadius: 9, padding: 8, background: '#fff', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <Icon size={13} color={C.soft} />
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: C.soft, flex: 1 }}>{label}</span>
+        <RemoveX onClick={onRemove} />
+      </div>
+      {(el.t === 'heading' || el.t === 'text') && (
+        <Inp value={el.text ?? ''} ph="Content" onChange={(v) => onChange({ text: v })} />
+      )}
+      {(el.t === 'image' || el.t === 'embed') && (
+        <Inp value={el.url ?? ''} ph="https://…" onChange={(v) => onChange({ url: v })} />
+      )}
+      {(el.t === 'link' || el.t === 'button') && (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Inp value={el.text ?? ''} ph="Label" onChange={(v) => onChange({ text: v })} />
+          <div style={{ flex: 1 }}><Inp value={el.url ?? ''} ph="https://…" onChange={(v) => onChange({ url: v })} /></div>
+        </div>
+      )}
+      {el.t === 'button' && (
+        <div style={{ display: 'flex', gap: 6 }}>
+          {(['filled', 'outline'] as const).map((v) => (
+            <MiniBtn key={v} onClick={() => onChange({ variant: v })}>
+              <span style={{ fontWeight: (el.variant ?? 'filled') === v ? 700 : 500,
+                color: (el.variant ?? 'filled') === v ? C.ink : C.soft }}>{v}</span>
+            </MiniBtn>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---- freeform elements section (under every tile) ----
+function Elements({ tile, editable, onEdit }:
+  { tile: Tile; editable: boolean; onEdit: (patch: any) => void }) {
+  const els: Element[] = tile.data?.elements ?? []
+  const setEls = (next: Element[]) => onEdit({ elements: next })
+  if (!editable && els.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: editable ? 8 : 10,
+      marginTop: tile.kind === 'custom' ? 0 : (els.length || editable ? 12 : 0) }}>
+      {els.map((el, i) => editable ? (
+        <ElEditor key={el.id} el={el}
+          onChange={(patch) => setEls(els.map((x, j) => (j === i ? { ...x, ...patch } : x)))}
+          onRemove={() => setEls(els.filter((_, j) => j !== i))} />
+      ) : (
+        <div key={el.id}>{renderEl(el, tile.accent)}</div>
+      ))}
+      {editable && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {ELEMENT_KINDS.map(({ t, label, Icon }) => (
+            <MiniBtn key={t} onClick={() => setEls([...els, blankEl(t)])}>
+              <Icon size={12} /> {label}
+            </MiniBtn>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---- full tile body: kind content + freeform elements ----
+export function TileBody({ tile, editable, onEdit }:
+  { tile: Tile; editable: boolean; onEdit: (patch: any) => void }) {
+  return (
+    <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+      <KindBody tile={tile} editable={editable} onEdit={onEdit} />
+      <Elements tile={tile} editable={editable} onEdit={onEdit} />
     </div>
   )
 }

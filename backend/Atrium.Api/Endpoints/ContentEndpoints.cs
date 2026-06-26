@@ -167,11 +167,13 @@ public static class ContentEndpoints
             foreach (var bi in req.Blocks)
             {
                 TryParseBlockType(bi.Type, out var bt);
-                item.Blocks.Add(new Block
+                var nb = new Block
                 {
                     TenantId = item.TenantId, Type = bt, Position = bi.Position,
                     ContentJson = bi.ContentJson, ParentBlockId = bi.ParentBlockId
-                });
+                };
+                item.Blocks.Add(nb);
+                db.Entry(nb).State = EntityState.Added;   // force INSERT (tracked parent + client Guid PK)
             }
 
             item.CurrentVersion += 1;
@@ -198,6 +200,7 @@ public static class ContentEndpoints
                 Position = pos, ContentJson = req.ContentJson, ParentBlockId = req.ParentBlockId
             };
             item.Blocks.Add(block);
+            db.Entry(block).State = EntityState.Added;   // client Guid PK on a tracked parent -> force INSERT
 
             item.CurrentVersion += 1;
             item.UpdatedAt = DateTime.UtcNow;

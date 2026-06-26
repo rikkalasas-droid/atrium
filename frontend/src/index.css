@@ -13,6 +13,20 @@ body {
 .atr-grid { position: relative; width: 100%; min-height: 320px; }
 
 .atr-tile { transition: box-shadow .18s ease, transform .18s ease; }
+
+/* disco morphism: animated rainbow border, readable light inner surface */
+.morph-disco {
+  border: 2px solid transparent !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(var(--disco-surface, #fff), var(--disco-surface, #fff)) padding-box,
+    linear-gradient(90deg,#ff2d55,#ff9500,#ffcc00,#34c759,#5ac8fa,#af52de,#ff2d55) border-box !important;
+  background-size: auto, 300% 100% !important;
+  box-shadow: 0 10px 30px -16px rgba(0,0,0,.4) !important;
+  animation: discoshift 5s linear infinite;
+}
+@keyframes discoshift { to { background-position: 0 0, 300% 0; } }
+@media (prefers-reduced-motion: reduce) { .morph-disco { animation: none; } }
 @media (prefers-reduced-motion: no-preference) {
   .atr-tile.canhover:hover {
     transform: translateY(-2px);

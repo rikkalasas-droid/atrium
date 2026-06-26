@@ -6,6 +6,7 @@ import {
   MapPin, Briefcase, Award, Target, Coffee, Lightbulb, Smile, Phone,
 } from 'lucide-react'
 import { C, ACCENTS, DISPLAY, UI, hexA } from './theme'
+import type { MorphKey } from './morph'
 import type { ApiBlock, BlockInput } from './api'
 
 export type TileKind =
@@ -23,6 +24,7 @@ export type Tile = {
   accent: string
   tint?: string
   font?: FontCfg
+  morph?: MorphKey          // surface style; undefined = inherit the board's
   data: any
 }
 
@@ -133,6 +135,7 @@ export function blockToTile(b: ApiBlock): Tile {
     accent: cfg.accent ?? ACCENTS[0],
     tint: cfg.tint ?? 'none',
     font: cfg.font,
+    morph: cfg.morph,
     data: cfg.data ?? {},
   }
 }
@@ -143,7 +146,7 @@ export function tileToBlock(t: Tile, index: number): BlockInput {
     position: index,
     contentJson: JSON.stringify({
       kind: t.kind, w: t.w, h: t.h, x: t.x, y: t.y,
-      accent: t.accent, tint: t.tint, font: t.font, data: t.data,
+      accent: t.accent, tint: t.tint, font: t.font, morph: t.morph, data: t.data,
     }),
   }
 }

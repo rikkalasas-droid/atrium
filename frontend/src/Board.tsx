@@ -6,6 +6,7 @@ import {
   Tile, TileKind, TileBody, KIND_META, blockToTile, tileToBlock, newTile,
   packLayout, fontStyle, COLS, TINTS, FONTS, FontKey,
 } from './tiles'
+import { MorphKey, MORPHS, morphCard, morphBoard } from './morph'
 
 const GAP = 14
 const CELL_H = 110
@@ -20,6 +21,7 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
   const [saving, setSaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [selectedUid, setSelectedUid] = useState<string | null>(null)
   const [active, setActive] = useState<string | null>(null)   // tile being dragged/resized (raised)
+  const [boardMorph, setBoardMorph] = useState<MorphKey>('flat')   // whole-screen style
 
   const gridRef = useRef<HTMLDivElement>(null)
   const els = useRef(new Map<string, HTMLElement>())
@@ -37,7 +39,11 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
     setLoading(true); setError(null)
     try {
       const item = await api.getItem(itemId)
-      const t = (item.blocks ?? [])
+      const blocks = item.blocks ?? []
+      const cfg = blocks.find((b) => b.type === 'Board')
+      try { setBoardMorph((cfg?.contentJson ? JSON.parse(cfg.contentJson).morph : 'flat') ?? 'flat') }
+      catch { setBoardMorph('flat') }
+      const t = blocks
         .filter((b) => b.type === 'Tile')
         .sort((a, b) => a.position - b.position)
         .map(blockToTile)
@@ -50,12 +56,15 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
   const save = useCallback(async () => {
     setSaving('saving')
     try {
-      const blocks = tiles.map((t, i) => tileToBlock(t, i))
+      const boardBlock = { type: 'Board', position: 0, contentJson: JSON.stringify({ morph: boardMorph }) }
+      const blocks = [boardBlock, ...tiles.map((t, i) => tileToBlock(t, i + 1))]
       const res = await api.replaceBlocks(itemId, blocks)
       setVersion(res.currentVersion); setDirty(false); setSaving('saved')
       setTimeout(() => setSaving('idle'), 1600)
     } catch { setSaving('error') }
-  }, [itemId, tiles])
+  }, [itemId, tiles, boardMorph])
+
+  const setBoard = (m: MorphKey) => { setBoardMorph(m); setDirty(true) }
 
   const mutate = (fn: (t: Tile[]) => Tile[]) => { setTiles((prev) => fn(prev)); setDirty(true) }
   const patch = (uid: string, p: Partial<Tile>) => mutate((ts) => ts.map((t) => (t.uid === uid ? { ...t, ...p } : t)))
@@ -128,10 +137,8 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
   const contentH = Math.max(320, ...tiles.map((t) =>
     ((t.y ?? 1) - 1) * (CELL_H + GAP) + t.h * CELL_H + (t.h - 1) * GAP)) + GAP
 
-  const cardBase: React.CSSProperties = {
-    position: 'relative', border: `1px solid ${C.line}`, borderRadius: 16, padding: 16, overflow: 'hidden',
-    boxShadow: '0 1px 2px rgba(26,26,46,.04), 0 10px 26px -18px rgba(26,26,46,.18)',
-  }
+  const cardLayout: React.CSSProperties = { position: 'relative', padding: 16, overflow: 'hidden' }
+  const boardBg = morphBoard(boardMorph)
   const ctrl: React.CSSProperties = {
     width: 28, height: 28, borderRadius: 8, background: '#fff', border: `1px solid ${C.line}`,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
@@ -163,8 +170,16 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
             </div>
           </Section>
 
+          <Section label="Screen style">
+            <MorphPicker value={boardMorph} onPick={(m) => setBoard(m ?? 'flat')} />
+          </Section>
+
           {selected ? (
             <>
+              <Section label="Tile style">
+                <MorphPicker value={selected.morph} allowInherit
+                  onPick={(m) => patch(selected.uid, { morph: m })} />
+              </Section>
               <Section label="Tint">
                 <Swatches values={TINTS} current={selected.tint ?? 'none'}
                   onPick={(v) => patch(selected.uid, { tint: v })} renderNone />
@@ -259,11 +274,13 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
             border: '1px solid #FECACA', borderRadius: 12 }}>Couldn’t load the board: {error}</div>}
 
           {!loading && !error && (
+            <div style={{ background: boardBg || undefined, borderRadius: boardBg ? 22 : 0, padding: boardBg ? 16 : 0 }}>
             <div className="atr-grid" ref={gridRef} style={{ height: contentH }}>
               {tiles.map((tile) => {
                 const isActive = tile.uid === active
                 const isSel = tile.uid === selectedUid && arrange
-                const bg = tile.tint && tile.tint !== 'none' ? tile.tint : C.surface
+                const eff = tile.morph ?? boardMorph
+                const surface = tile.tint && tile.tint !== 'none' ? tile.tint : '#FFFFFF'
                 return (
                   <div key={tile.uid}
                     ref={(el) => { if (el) els.current.set(tile.uid, el); else els.current.delete(tile.uid) }}
@@ -271,9 +288,11 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
                     onPointerMove={onMove}
                     onPointerUp={onUp}
                     onPointerCancel={onUp}
-                    className={`atr-tile ${arrange ? '' : 'canhover'}`}
+                    className={`atr-tile ${arrange ? '' : 'canhover'} ${eff === 'disco' ? 'morph-disco' : ''}`}
                     style={{
-                      ...cardBase, position: 'absolute', ...px(tile), background: bg,
+                      ...cardLayout, position: 'absolute', ...px(tile),
+                      ...morphCard(eff, tile.accent, tile.tint),
+                      ...({ ['--disco-surface' as any]: surface }),
                       touchAction: arrange ? 'none' : 'auto',
                       cursor: arrange ? (isActive ? 'grabbing' : 'grab') : 'default',
                       ...(isSel ? { border: `2px solid ${tile.accent}` } : {}),
@@ -299,6 +318,7 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
                   </div>
                 )
               })}
+            </div>
             </div>
           )}
         </main>
@@ -327,6 +347,31 @@ function Swatches({ values, current, onPick, renderNone }:
             style={{ width: 22, height: 22, borderRadius: 999, cursor: 'pointer',
               background: none ? '#fff' : v, backgroundImage: none && renderNone ? 'linear-gradient(45deg,transparent 45%,#DC2626 45%,#DC2626 55%,transparent 55%)' : undefined,
               border: current === v ? `2px solid ${C.ink}` : '2px solid #fff', outline: `1px solid ${C.line}` }} />
+        )
+      })}
+    </div>
+  )
+}
+function MorphPicker({ value, onPick, allowInherit }:
+  { value: MorphKey | undefined; onPick: (m: MorphKey | undefined) => void; allowInherit?: boolean }) {
+  const opts: { key: MorphKey | undefined; label: string }[] =
+    allowInherit ? [{ key: undefined, label: 'Auto' }, ...MORPHS] : MORPHS
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 6 }}>
+      {opts.map((o) => {
+        const sel = value === o.key
+        const swatch: React.CSSProperties = o.key
+          ? { ...morphCard(o.key, C.indigo), boxShadow: 'none' }
+          : { background: '#fff', border: `1px dashed ${C.line}` }
+        return (
+          <button key={o.label} onClick={() => onPick(o.key)} title={o.label}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 10,
+              cursor: 'pointer', textAlign: 'left', border: `1px solid ${sel ? C.indigo : C.line}`,
+              background: sel ? C.isoft : '#fff' }}>
+            <span className={o.key === 'disco' ? 'morph-disco' : ''}
+              style={{ width: 22, height: 22, borderRadius: 7, flex: '0 0 auto', ...swatch }} />
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: C.ink }}>{o.label}</span>
+          </button>
         )
       })}
     </div>

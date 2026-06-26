@@ -2,6 +2,8 @@ import {
   Sparkles, Link2, StickyNote, BarChart3, Calendar, Users,
   MousePointerClick, Clock, Plus, X, Shapes,
   Type, Image as ImageIcon, Code2, Minus, ExternalLink,
+  Star, Heart, Flag, CheckCircle2, Rocket, Zap, Bell, Mail,
+  MapPin, Briefcase, Award, Target, Coffee, Lightbulb, Smile, Phone,
 } from 'lucide-react'
 import { C, ACCENTS, DISPLAY, UI, hexA } from './theme'
 import type { ApiBlock, BlockInput } from './api'
@@ -76,19 +78,29 @@ export const KIND_META: Record<TileKind, { label: string; Icon: any }> = {
   custom: { label: 'Custom', Icon: Shapes },
 }
 
+// ---- icon library (per-step timeline/event icons + icon element) ----
+export const ICONS = {
+  Sparkles, Star, Heart, Flag, CheckCircle2, Rocket, Zap, Bell,
+  Mail, Phone, MapPin, Briefcase, Award, Target, Calendar, Clock,
+  Users, BarChart3, Lightbulb, Coffee, Smile, Link2,
+} as const
+export type IconKey = keyof typeof ICONS
+
 // ---- freeform elements (can be added to ANY tile) ----
-export type ElKind = 'heading' | 'text' | 'image' | 'embed' | 'link' | 'button' | 'divider'
+export type ElKind = 'heading' | 'text' | 'image' | 'embed' | 'link' | 'button' | 'divider' | 'icon'
 export type Element = {
   id: string
   t: ElKind
   text?: string                     // heading/text content, link/button label
   url?: string                      // image src, embed src, link/button href
   variant?: 'filled' | 'outline'    // button style
+  icon?: IconKey                    // icon element / per-step icon
 }
 
 export const ELEMENT_KINDS: { t: ElKind; label: string; Icon: any }[] = [
   { t: 'heading', label: 'Heading', Icon: Type },
   { t: 'text', label: 'Text', Icon: StickyNote },
+  { t: 'icon', label: 'Icon', Icon: Sparkles },
   { t: 'image', label: 'Image', Icon: ImageIcon },
   { t: 'embed', label: 'Embed', Icon: Code2 },
   { t: 'link', label: 'Link', Icon: Link2 },
@@ -106,6 +118,7 @@ export function blankEl(t: ElKind): Element {
     case 'embed': return { id: uid(), t, url: '' }
     case 'link': return { id: uid(), t, text: 'Visit link', url: 'https://' }
     case 'button': return { id: uid(), t, text: 'Button', url: '#', variant: 'filled' }
+    case 'icon': return { id: uid(), t, icon: 'Star', text: '' }
     case 'divider': return { id: uid(), t }
   }
 }
@@ -200,6 +213,24 @@ const RemoveX = ({ onClick }: { onClick: () => void }) => (
     <X size={13} />
   </button>
 )
+function IconPicker({ value, onPick }: { value?: string; onPick: (k: string) => void }) {
+  return (
+    <div data-control onPointerDown={(e) => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+      {(Object.keys(ICONS) as IconKey[]).map((k) => {
+        const I = ICONS[k]
+        const sel = value === k
+        return (
+          <button key={k} data-control title={k} onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onPick(sel ? '' : k)}
+            style={{ border: `1px solid ${sel ? C.ink : C.line}`, background: sel ? hexA(C.ink, 0.06) : '#fff',
+              borderRadius: 7, padding: 5, cursor: 'pointer', lineHeight: 0 }}>
+            <I size={15} color={sel ? C.ink : C.soft} />
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 // ---- kind-specific content for a tile ----
 function KindBody({ tile, editable, onEdit }:
@@ -299,35 +330,52 @@ function KindBody({ tile, editable, onEdit }:
   }
 
   if (tile.kind === 'events' || tile.kind === 'timeline') {
-    const items: [string, string][] = d.items ?? []
-    const set = (i: number, k: 0 | 1, v: string) =>
-      onEdit({ items: items.map((row, j) => (j === i ? (k === 0 ? [v, row[1]] : [row[0], v]) : row)) })
+    const items: [string, string, IconKey?][] = d.items ?? []
+    const setText = (i: number, k: 0 | 1, v: string) =>
+      onEdit({ items: items.map((row, j) => (j === i ? (k === 0 ? [v, row[1], row[2]] : [row[0], v, row[2]]) : row)) })
+    const setIcon = (i: number, ic: string) =>
+      onEdit({ items: items.map((row, j) => (j === i ? [row[0], row[1], (ic || undefined) as IconKey | undefined] : row)) })
     const isTl = tile.kind === 'timeline'
     return (
       <div style={{ height: '100%' }}>
         <Header>{d.heading ?? (isTl ? 'Timeline' : 'Upcoming')}</Header>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: editable ? 8 : 10,
-          ...(isTl && !editable ? { borderLeft: `2px solid ${hexA(a, 0.25)}`, marginLeft: 4, paddingLeft: 12 } : {}) }}>
-          {items.map((ev, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
-              <span style={{ width: isTl ? 9 : 8, height: isTl ? 9 : 8, borderRadius: 999, background: a, flex: '0 0 auto',
-                ...(isTl && !editable ? { position: 'absolute', left: -18 } : {}) }} />
-              {editable ? (
-                <>
-                  <div style={{ flex: 1, display: 'flex', gap: 6 }}>
-                    <Inp value={ev[0]} onChange={(v) => set(i, 0, v)} />
-                    <div style={{ width: 90 }}><Inp value={ev[1]} ph="when" onChange={(v) => set(i, 1, v)} /></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: editable ? 10 : 0 }}>
+          {items.map((ev, i) => {
+            const StepIcon = ev[2] ? ICONS[ev[2]] : null
+            const last = i === items.length - 1
+            if (editable) {
+              return (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 7, border: `1px solid ${C.line}`,
+                  borderRadius: 9, padding: 8, background: '#fff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Inp value={ev[0]} onChange={(v) => setText(i, 0, v)} />
+                    <div style={{ width: 90 }}><Inp value={ev[1]} ph="when" onChange={(v) => setText(i, 1, v)} /></div>
+                    <RemoveX onClick={() => onEdit({ items: items.filter((_, j) => j !== i) })} />
                   </div>
-                  <RemoveX onClick={() => onEdit({ items: items.filter((_, j) => j !== i) })} />
-                </>
-              ) : (
-                <div style={{ flex: 1 }}>
+                  <IconPicker value={ev[2]} onPick={(ic) => setIcon(i, ic)} />
+                </div>
+              )
+            }
+            const Node = (
+              <span style={{ position: 'relative', zIndex: 1, width: 28, height: 28, borderRadius: 999,
+                background: hexA(a, 0.14), color: a, display: 'grid', placeItems: 'center', flex: '0 0 auto' }}>
+                {StepIcon ? <StepIcon size={15} strokeWidth={2.2} />
+                  : <span style={{ width: 9, height: 9, borderRadius: 999, background: a }} />}
+              </span>
+            )
+            return (
+              <div key={i} style={{ display: 'flex', gap: 11 }}>
+                <div style={{ width: 28, flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  {Node}
+                  {isTl && !last && <span style={{ width: 2, flex: 1, minHeight: 14, background: hexA(a, 0.22) }} />}
+                </div>
+                <div style={{ flex: 1, paddingBottom: last ? 0 : 14, paddingTop: 4 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{ev[0]}</div>
                   <div style={{ fontSize: 11.5, color: C.faint }}>{ev[1]}</div>
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            )
+          })}
           {editable && <MiniBtn onClick={() => onEdit({ items: [...items, ['New', '']] })}><Plus size={12} /> Add {isTl ? 'step' : 'event'}</MiniBtn>}
         </div>
       </div>
@@ -427,6 +475,17 @@ function renderEl(el: Element, a: string) {
         </a>
       )
     }
+    case 'icon': {
+      const I = el.icon ? ICONS[el.icon] : Sparkles
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, color: a }}>
+          <span style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', background: hexA(a, 0.13) }}>
+            <I size={20} strokeWidth={2} />
+          </span>
+          {el.text ? <span style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>{el.text}</span> : null}
+        </div>
+      )
+    }
     case 'divider':
       return <hr style={{ border: 'none', borderTop: `1px solid ${C.line}`, margin: '2px 0' }} />
   }
@@ -448,6 +507,12 @@ function ElEditor({ el, onChange, onRemove }:
       )}
       {(el.t === 'image' || el.t === 'embed') && (
         <Inp value={el.url ?? ''} ph="https://…" onChange={(v) => onChange({ url: v })} />
+      )}
+      {el.t === 'icon' && (
+        <>
+          <Inp value={el.text ?? ''} ph="Label (optional)" onChange={(v) => onChange({ text: v })} />
+          <IconPicker value={el.icon} onPick={(ic) => onChange({ icon: (ic || undefined) as IconKey | undefined })} />
+        </>
       )}
       {(el.t === 'link' || el.t === 'button') && (
         <div style={{ display: 'flex', gap: 6 }}>

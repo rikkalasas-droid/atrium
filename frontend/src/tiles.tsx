@@ -6,7 +6,7 @@ import {
   MapPin, Briefcase, Award, Target, Coffee, Lightbulb, Smile, Phone,
 } from 'lucide-react'
 import { C, ACCENTS, DISPLAY, UI, hexA } from './theme'
-import type { MorphKey } from './morph'
+import { MorphKey, MORPHS, morphCard } from './morph'
 import type { ApiBlock, BlockInput } from './api'
 
 export type TileKind =
@@ -97,6 +97,7 @@ export type Element = {
   url?: string                      // image src, embed src, link/button href
   variant?: 'filled' | 'outline'    // button style
   icon?: IconKey                    // icon element / per-step icon
+  morph?: MorphKey                  // optional surface style around this element
 }
 
 export const ELEMENT_KINDS: { t: ElKind; label: string; Icon: any }[] = [
@@ -444,8 +445,18 @@ function KindBody({ tile, editable, onEdit }:
   )
 }
 
-// ---- render one freeform element ----
+// ---- render one freeform element (optionally wrapped in a morph surface) ----
 function renderEl(el: Element, a: string) {
+  const inner = elContent(el, a)
+  if (!el.morph) return inner
+  return (
+    <div className={el.morph === 'disco' ? 'morph-disco' : ''}
+      style={{ padding: 12, ...morphCard(el.morph, a), ...({ ['--disco-surface' as any]: '#FFFFFF' }) }}>
+      {inner}
+    </div>
+  )
+}
+function elContent(el: Element, a: string) {
   switch (el.t) {
     case 'heading':
       return <div style={{ fontFamily: DISPLAY, fontSize: 17, fontWeight: 700, color: C.ink, letterSpacing: -0.2 }}>{el.text}</div>
@@ -533,7 +544,19 @@ function ElEditor({ el, onChange, onRemove }:
           ))}
         </div>
       )}
+      {el.t !== 'divider' && <ElMorph value={el.morph} onChange={(m) => onChange({ morph: m })} />}
     </div>
+  )
+}
+function ElMorph({ value, onChange }: { value?: MorphKey; onChange: (m: MorphKey | undefined) => void }) {
+  return (
+    <select data-control value={value ?? ''} onPointerDown={(e) => e.stopPropagation()}
+      onChange={(e) => onChange((e.target.value || undefined) as MorphKey | undefined)}
+      style={{ border: `1px solid ${C.line}`, borderRadius: 6, padding: '4px 7px', fontSize: 11.5,
+        color: C.soft, background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+      <option value="">Surface: none</option>
+      {MORPHS.map((m) => <option key={m.key} value={m.key}>Surface: {m.label}</option>)}
+    </select>
   )
 }
 

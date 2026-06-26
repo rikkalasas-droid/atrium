@@ -54,11 +54,15 @@ rides inside a tile's `ContentJson.data`.
   Metal, Light, Squircle, Disco** (disco = animated rainbow border via the
   `.morph-disco` class in `index.css`; all surfaces stay light so text is
   readable).
-- Applied at two scopes from the left inspector:
+- Applied at three scopes:
   - **Screen style** — a board-level morph that paints the canvas behind the
     tiles and is the default for every tile.
   - **Tile style** — per-tile override with an **Auto** option that inherits
     the screen style.
+  - **Element style** — each freeform element (heading, text, icon, image,
+    embed, link, button) can opt into its own morph "surface" via a
+    `Surface: …` dropdown in the element editor (default = none/transparent).
+    `renderEl` wraps the element in a padded `morphCard` box when set.
 - Persistence: per-tile morph rides in the tile's `ContentJson` (`morph`);
   the board-level morph is a dedicated `Board`-type block at position 0.
 - Backend: added `Board` to the `BlockType` enum (`Domain/Enums.cs`) so the

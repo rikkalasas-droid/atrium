@@ -1,18 +1,66 @@
 import {
   Sparkles, Link2, StickyNote, BarChart3, Calendar, Users,
 } from 'lucide-react'
-import { C, ACCENTS, DISPLAY, hexA } from './theme'
+import { C, ACCENTS, DISPLAY, UI, hexA } from './theme'
 import type { ApiBlock, BlockInput } from './api'
 
 export type TileKind = 'banner' | 'links' | 'note' | 'metric' | 'events' | 'people'
 
+export type FontCfg = { family?: FontKey; weight?: number; scale?: number }
+
 export type Tile = {
   uid: string            // local identity for keys + drag
   kind: TileKind
-  w: number              // grid columns (1 or 2)
-  h: number              // grid rows (1 or 2)
+  w: number              // grid columns (>=1, free)
+  h: number              // grid rows (>=1, free)
+  x?: number             // grid column (1-based); undefined = unplaced
+  y?: number             // grid row (1-based)
   accent: string
+  tint?: string          // card background tint ('none' or hex)
+  font?: FontCfg
   data: any
+}
+
+// ---- free-placement grid + style options ----
+export const COLS = 6   // free-placement grid width (matches .atr-grid)
+
+export const FONTS = {
+  Sans: UI,
+  Display: DISPLAY,
+  Serif: 'Georgia, "Times New Roman", serif',
+  Mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+} as const
+export type FontKey = keyof typeof FONTS
+
+// light tints (pair with the accent palette); 'none' = white card
+export const TINTS = ['none', '#EEF2FF', '#F5F3FF', '#EFF6FF', '#ECFEFF', '#FDF2F8', '#FFF7ED', '#FEF2F2']
+
+export const fontStyle = (f?: FontCfg) => ({
+  fontFamily: FONTS[f?.family ?? 'Sans'],
+  fontWeight: f?.weight,
+  fontSize: f?.scale ? `${Math.round(14 * f.scale)}px` : undefined,
+} as const)
+
+// Assign x,y to tiles lacking a placement (first free cell, row by row).
+export function packLayout(tiles: Tile[]): Tile[] {
+  const occ = new Set<string>()
+  const placed = (t: Tile) => !!(t.x && t.y && t.x >= 1 && t.y >= 1)
+  const fits = (c: number, r: number, w: number, h: number) => {
+    if (c < 1 || c + w - 1 > COLS || r < 1) return false
+    for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) if (occ.has(`${c + i},${r + j}`)) return false
+    return true
+  }
+  const mark = (c: number, r: number, w: number, h: number) => {
+    for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) occ.add(`${c + i},${r + j}`)
+  }
+  for (const t of tiles) if (placed(t)) mark(t.x!, t.y!, Math.min(t.w, COLS), t.h)
+  return tiles.map((t) => {
+    if (placed(t)) return t
+    const w = Math.min(t.w, COLS)
+    for (let r = 1; ; r++) for (let c = 1; c <= COLS; c++) {
+      if (fits(c, r, w, t.h)) { mark(c, r, w, t.h); return { ...t, x: c, y: r } }
+    }
+  })
 }
 
 export const KIND_META: Record<TileKind, { label: string; Icon: any }> = {
@@ -35,7 +83,10 @@ export function blockToTile(b: ApiBlock): Tile {
     kind: (cfg.kind as TileKind) ?? 'note',
     w: cfg.w ?? 1,
     h: cfg.h ?? 1,
+    x: cfg.x, y: cfg.y,
     accent: cfg.accent ?? ACCENTS[0],
+    tint: cfg.tint ?? 'none',
+    font: cfg.font,
     data: cfg.data ?? {},
   }
 }
@@ -44,7 +95,10 @@ export function tileToBlock(t: Tile, index: number): BlockInput {
   return {
     type: 'Tile',
     position: index,
-    contentJson: JSON.stringify({ kind: t.kind, w: t.w, h: t.h, accent: t.accent, data: t.data }),
+    contentJson: JSON.stringify({
+      kind: t.kind, w: t.w, h: t.h, x: t.x, y: t.y,
+      accent: t.accent, tint: t.tint, font: t.font, data: t.data,
+    }),
   }
 }
 

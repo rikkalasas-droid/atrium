@@ -70,4 +70,7 @@ app.MapPost("/api/dev/seed", async (AtriumDbContext db) =>
 // ---- content CRUD (spaces / items / blocks / versions) ----
 app.MapContentEndpoints();
 
+// ---- migration import (server-side URL fetch with SSRF guard) ----
+app.MapImportEndpoints();
+
 app.Run();

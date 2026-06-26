@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { LayoutGrid, Trash2, Check, Move, Plus, FileText } from 'lucide-react'
+import { LayoutGrid, Trash2, Check, Move, Plus, FileText, Upload } from 'lucide-react'
 import { C, ACCENTS, DISPLAY, hexA } from './theme'
 import { api } from './api'
+import Importer from './Importer'
 import {
   Tile, TileKind, TileBody, KIND_META, blockToTile, tileToBlock, newTile,
   packLayout, fontStyle, COLS, TINTS, FONTS, FontKey, PageRef,
@@ -15,13 +16,15 @@ type BoardProps = {
   onNewPage: () => void
   onRenamePage: (id: string, title: string) => void
   onDeletePage: (id: string) => void
+  onImport: (title: string, tiles: Tile[]) => void
 }
 
 const GAP = 14
 const CELL_H = 110
 
 export default function Board({ itemId, spaceName, pages, currentId,
-  onNavigate, onNewPage, onRenamePage, onDeletePage }: BoardProps) {
+  onNavigate, onNewPage, onRenamePage, onDeletePage, onImport }: BoardProps) {
+  const [importing, setImporting] = useState(false)
   const [tiles, setTiles] = useState<Tile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -323,6 +326,13 @@ export default function Board({ itemId, spaceName, pages, currentId,
                 padding: '6px 10px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
               <Plus size={13} /> Page
             </button>
+            <div style={{ flex: 1 }} />
+            <button onClick={() => setImporting(true)} title="Import from SharePoint or any site"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: '0 0 auto',
+                border: `1px solid ${C.line}`, background: '#fff', color: C.soft, borderRadius: 9,
+                padding: '6px 11px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+              <Upload size={13} /> Import
+            </button>
           </nav>
         </header>
 
@@ -390,6 +400,11 @@ export default function Board({ itemId, spaceName, pages, currentId,
           )}
         </main>
       </div>
+
+      {importing && (
+        <Importer onClose={() => setImporting(false)}
+          onImport={(title, tiles) => { onImport(title, tiles); setImporting(false) }} />
+      )}
     </div>
   )
 }

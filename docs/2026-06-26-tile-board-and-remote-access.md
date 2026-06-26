@@ -107,6 +107,28 @@ rides inside a tile's `ContentJson.data`.
   Form/WorkflowBody`. Frontend-only — responses/progress live in the tile's
   `ContentJson.data`.
 
+### g. Migration / import — SharePoint & any .NET site  (commit pending)
+- An **Import** button (page-nav bar) opens a modal with three modes; each
+  produces a new, fully editable Atrium page (reuses the multi-page system):
+  - **From URL** — server fetches the page (bypasses browser CORS), client
+    parses it. Works for public SharePoint / .NET / any site.
+  - **Paste HTML** — for pages behind a login: View Source → paste. Also file
+    upload (.html).
+  - **CSV / List** — export a SharePoint list or Excel sheet to CSV, paste or
+    upload; rows become content.
+- **Parser** (`importer.ts`, client-side via DOMParser): finds a content root
+  (handles SharePoint `.CanvasZone`/classic zones + generic `main`/`article`),
+  maps h1–h4 → headings, p/blockquote → text, li → bullets, single-link
+  li/p → link elements, img → image elements (relative URLs resolved), hr →
+  divider. Output: a banner tile (title + "Imported from <host>") + a custom
+  tile of those elements. CSV → heading + a text row per record.
+- **Backend** (`ImportEndpoints.cs`, `POST /api/import/url`): server-side fetch
+  with an **SSRF guard** — http/https only, DNS-resolves the host and rejects
+  loopback / private (10/172.16-31/192.168) / link-local / IPv6 ULA, caps the
+  body at 4 MB, 15s timeout. Registered in `Program.cs`.
+- Note: authenticated SharePoint pages can't be fetched anonymously by the URL
+  mode — the Paste-HTML / CSV paths cover those.
+
 ### Verification done (headless, server-side)
 - Frontend build clean each time (`tsc -b && vite build`, ~190 KB bundle).
 - Deployed via `~/atrium_deploy.sh` (build+push to `localhost:5000`, compose up
@@ -117,6 +139,8 @@ rides inside a tile's `ContentJson.data`.
     icon element survive.
   - Board-level morph (`Board` block, `glass`) + a per-tile morph (`clay`)
     + an inheriting tile (no morph) all round-trip.
+  - Import URL endpoint: example.com fetched (200); SSRF guard blocks
+    10.x / 192.168 / localhost / `file://`.
 
 ### Still open
 - **Browser test by the user** — drag, resize, the left inspector, element

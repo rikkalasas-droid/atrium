@@ -40,4 +40,6 @@ export const api = {
     req(`/items/${itemId}`, { method: 'DELETE' }),
   replaceBlocks: (itemId: string, blocks: BlockInput[]): Promise<any> =>
     req(`/items/${itemId}/blocks`, { method: 'PUT', body: JSON.stringify({ blocks }) }),
+  importUrl: (url: string): Promise<{ finalUrl: string; status: number; html: string }> =>
+    req('/import/url', { method: 'POST', body: JSON.stringify({ url }) }),
 }

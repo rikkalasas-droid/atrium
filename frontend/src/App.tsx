@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Board from './Board'
 import { api } from './api'
-import { STARTER_TILES, tileToBlock, newTile, type PageRef } from './tiles'
+import { STARTER_TILES, tileToBlock, newTile, type PageRef, type Tile } from './tiles'
 import { C, DISPLAY } from './theme'
 
 export default function App() {
@@ -49,6 +49,16 @@ export default function App() {
       setCurrentId(created.id)
     } catch (e) { setError(String(e)) }
   }
+  const importPage = async (title: string, tiles: Tile[]) => {
+    try {
+      const created = await api.createItem(spaceId, {
+        title: title || 'Imported page', type: 'Page', fieldsJson: '{"kind":"page","imported":true}',
+        blocks: tiles.map((t, i) => tileToBlock(t, i + 1)),
+      })
+      setPages((p) => [...p, { id: created.id, title: created.title }])
+      setCurrentId(created.id)
+    } catch (e) { setError(String(e)) }
+  }
   const renamePage = async (id: string, title: string) => {
     setPages((p) => p.map((x) => (x.id === id ? { ...x, title } : x)))   // optimistic
     try { await api.updateItem(id, { title }) } catch (e) { setError(String(e)) }
@@ -86,7 +96,7 @@ export default function App() {
     <Board key={currentId} itemId={currentId} spaceName={spaceName}
       pages={pages} currentId={currentId}
       onNavigate={setCurrentId} onNewPage={newPage}
-      onRenamePage={renamePage} onDeletePage={deletePage} />
+      onRenamePage={renamePage} onDeletePage={deletePage} onImport={importPage} />
   )
 }
 

@@ -6,14 +6,16 @@ import {
   Star, Heart, Flag, CheckCircle2, Rocket, Zap, Bell, Mail,
   MapPin, Briefcase, Award, Target, Coffee, Lightbulb, Smile, Phone,
   ClipboardList, Workflow as WorkflowIcon, Circle, Check, ChevronRight,
+  Paperclip, Download, Upload as UploadIcon, File as FileIcon,
 } from 'lucide-react'
 import { C, ACCENTS, DISPLAY, UI, hexA } from './theme'
 import { MorphKey, MORPHS, morphCard } from './morph'
+import { api } from './api'
 import type { ApiBlock, BlockInput } from './api'
 
 export type TileKind =
   | 'banner' | 'links' | 'note' | 'metric' | 'events' | 'people' | 'button' | 'timeline'
-  | 'form' | 'workflow' | 'custom'
+  | 'form' | 'workflow' | 'files' | 'custom'
 
 export type FontCfg = { family?: FontKey; weight?: number; scale?: number }
 
@@ -87,6 +89,7 @@ export const KIND_META: Record<TileKind, { label: string; Icon: any }> = {
   timeline: { label: 'Timeline', Icon: Clock },
   form: { label: 'Form', Icon: ClipboardList },
   workflow: { label: 'Workflow', Icon: WorkflowIcon },
+  files: { label: 'Files', Icon: Paperclip },
   custom: { label: 'Custom', Icon: Shapes },
 }
 
@@ -200,6 +203,7 @@ export function defaultData(kind: TileKind): any {
       steps: [{ id: uid(), label: 'Submitted' }, { id: uid(), label: 'In review' }, { id: uid(), label: 'Approved' }],
       current: 0,
     }
+    case 'files': return { heading: 'Files', files: [] }
     case 'custom': return { heading: 'Custom', elements: [{ id: uid(), t: 'text', text: 'Add anything you like — text, images, embeds, buttons…' }] }
   }
 }
@@ -207,7 +211,7 @@ export function defaultData(kind: TileKind): any {
 export function newTile(kind: TileKind): Tile {
   const size = kind === 'banner' ? { w: 2, h: 1 }
     : kind === 'form' ? { w: 2, h: 3 }
-      : kind === 'custom' || kind === 'workflow' ? { w: 2, h: 2 }
+      : kind === 'custom' || kind === 'workflow' || kind === 'files' ? { w: 2, h: 2 }
         : kind === 'links' || kind === 'events' || kind === 'timeline' ? { w: 1, h: 2 }
           : { w: 1, h: 1 }
   const accent = ACCENTS[Math.floor(Math.random() * ACCENTS.length)]
@@ -284,6 +288,7 @@ function KindBody({ tile, editable, onEdit, onSubmit }:
 
   if (tile.kind === 'form') return <FormBody tile={tile} editable={editable} onEdit={onEdit} onSubmit={onSubmit} />
   if (tile.kind === 'workflow') return <WorkflowBody tile={tile} editable={editable} onEdit={onEdit} onSubmit={onSubmit} />
+  if (tile.kind === 'files') return <FilesBody tile={tile} editable={editable} onEdit={onEdit} onSubmit={onSubmit} />
 
   if (tile.kind === 'custom') {
     if (editable) return <Inp value={d.heading ?? ''} bold ph="Title (optional)" onChange={(v) => onEdit({ heading: v })} />
@@ -713,6 +718,69 @@ function WorkflowBody({ tile, editable, onEdit, onSubmit }:
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+// ---- Files tile: upload (server-mediated) + download, remembers the list ----
+function fileSize(n: number): string {
+  if (!n) return '0 B'
+  const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; let x = n
+  while (x >= 1024 && i < u.length - 1) { x /= 1024; i++ }
+  return `${i === 0 ? x : x.toFixed(1)} ${u[i]}`
+}
+function FilesBody({ tile, editable, onEdit, onSubmit }:
+  { tile: Tile; editable: boolean; onEdit: (patch: any) => void; onSubmit?: (patch: any) => void }) {
+  const a = tile.accent
+  const d = tile.data ?? {}
+  const files: any[] = d.files ?? []
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const onPick = async (list: FileList | null) => {
+    if (!list || !list.length) return
+    setBusy(true); setErr(null)
+    try {
+      const added: any[] = []
+      for (const f of Array.from(list)) {
+        const r = await api.uploadFile(f)
+        added.push({ id: r.id, name: r.fileName, size: r.size, contentType: r.contentType })
+      }
+      onSubmit?.({ files: [...files, ...added] })
+    } catch (e: any) { setErr(String(e.message || e)) }
+    finally { setBusy(false) }
+  }
+  const remove = async (id: string) => {
+    try { await api.deleteFile(id) } catch { /* drop from list regardless */ }
+    onSubmit?.({ files: files.filter((f) => f.id !== id) })
+  }
+
+  return (
+    <div>
+      <TileHead a={a} Icon={Paperclip} editable={editable} value={d.heading ?? 'Files'} onChange={(v) => onEdit({ heading: v })} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {files.length === 0 && <div style={{ fontSize: 12.5, color: C.faint }}>No files yet — upload below.</div>}
+        {files.map((f) => (
+          <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 9px',
+            border: `1px solid ${C.line}`, borderRadius: 9, background: '#fff' }}>
+            <span style={{ width: 26, height: 26, borderRadius: 7, flex: '0 0 auto', display: 'grid', placeItems: 'center',
+              background: hexA(a, 0.13), color: a }}><FileIcon size={14} /></span>
+            <a href={api.fileRawUrl(f.id)} download style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.ink,
+              textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</a>
+            <span style={{ fontSize: 11.5, color: C.faint, flex: '0 0 auto' }}>{fileSize(f.size)}</span>
+            <a href={api.fileRawUrl(f.id)} download title="Download" style={{ color: C.soft, lineHeight: 0 }}><Download size={15} /></a>
+            {editable && <RemoveX onClick={() => remove(f.id)} />}
+          </div>
+        ))}
+      </div>
+      {err && <div style={{ fontSize: 12, color: '#DC2626', marginTop: 6 }}>{err}</div>}
+      <label data-control onPointerDown={(e) => e.stopPropagation()}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 10, padding: '8px 13px',
+          borderRadius: 10, border: `1px dashed ${C.line}`, background: '#fff', color: busy ? C.faint : C.indigoDk,
+          fontSize: 12.5, fontWeight: 600, cursor: busy ? 'wait' : 'pointer' }}>
+        <UploadIcon size={14} /> {busy ? 'Uploading…' : 'Upload files'}
+        <input type="file" multiple hidden disabled={busy} onChange={(e) => onPick(e.target.files)} />
+      </label>
     </div>
   )
 }

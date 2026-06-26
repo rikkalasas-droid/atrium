@@ -42,4 +42,18 @@ export const api = {
     req(`/items/${itemId}/blocks`, { method: 'PUT', body: JSON.stringify({ blocks }) }),
   importUrl: (url: string): Promise<{ finalUrl: string; status: number; html: string }> =>
     req('/import/url', { method: 'POST', body: JSON.stringify({ url }) }),
+
+  // server-mediated file upload (works even when the cloud endpoint isn't browser-reachable)
+  uploadFile: async (file: File, opts?: { itemId?: string; blockId?: string }):
+    Promise<{ id: string; fileName: string; size: number; contentType: string }> => {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (opts?.itemId) fd.append('itemId', opts.itemId)
+    if (opts?.blockId) fd.append('blockId', opts.blockId)
+    const res = await fetch(BASE + '/files/direct', { method: 'POST', body: fd })
+    if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`)
+    return res.json()
+  },
+  deleteFile: (id: string): Promise<null> => req(`/files/${id}`, { method: 'DELETE' }),
+  fileRawUrl: (id: string) => `${BASE}/files/${id}/raw`,
 }

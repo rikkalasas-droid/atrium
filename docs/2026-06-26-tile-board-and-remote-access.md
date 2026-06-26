@@ -160,6 +160,24 @@ rides inside a tile's `ContentJson.data`.
   endpoint; production clouds are public HTTPS so this is dev-only. No in-UI
   admin panel wired yet (StorageSettings.tsx skipped — needs routing); use curl.
 
+### i. Files tile — upload & download on top of storage  (commit pending)
+- New **Files** tile kind: upload files and list them with size + download.
+  Stored as `data.files[] = {id, name, size, contentType}`; the list persists
+  immediately (same `onSubmit` path as forms).
+- **Server-mediated endpoints** added so uploads/downloads work even when the
+  cloud endpoint isn't browser-reachable (the dev-MinIO case):
+  - `POST /api/files/direct` — multipart upload; streams API → storage
+    (`PutAsync`), records a StoredFile, returns `{id,fileName,size,contentType}`.
+  - `GET /api/files/{id}/raw` — streams bytes back with a friendly
+    `Content-Disposition` filename (`GetAsync`).
+  The signed-URL endpoints (`upload-url`/`download-url`) remain the production
+  "bytes bypass the server" route; the UI uses the server-mediated pair because
+  it works in every environment.
+- `api.ts`: `uploadFile()` (FormData), `deleteFile()`, `fileRawUrl()`.
+- **Verified end-to-end on real MinIO:** multipart upload → object present in
+  the `atrium-dev` bucket → `raw` download returns identical bytes with the
+  right filename → delete returns 204.
+
 ### Verification done (headless, server-side)
 - Frontend build clean each time (`tsc -b && vite build`, ~190 KB bundle).
 - Deployed via `~/atrium_deploy.sh` (build+push to `localhost:5000`, compose up

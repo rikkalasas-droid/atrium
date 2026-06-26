@@ -103,6 +103,48 @@ public static class FileEndpoints
             return Results.NoContent();
         });
 
+        // 5) Server-mediated UPLOAD (multipart). The signed-URL path (1+2) is the
+        //    production "bytes bypass the server" route; this is the path the UI uses
+        //    so uploads work even when the cloud endpoint isn't browser-reachable
+        //    (e.g. in-stack MinIO on dev). Bytes stream API -> storage.
+        g.MapPost("/files/direct", async (HttpRequest request, HttpContext ctx, AtriumDbContext db, IStorageProvider storage) =>
+        {
+            if (!request.HasFormContentType) return Results.BadRequest(new { error = "expected multipart/form-data" });
+            var form = await request.ReadFormAsync();
+            var f = form.Files["file"];
+            if (f is null || f.Length == 0) return Results.BadRequest(new { error = "no file part named 'file'" });
+
+            var tenant = await ResolveTenantAsync(ctx, db);
+            var safe = SanitizeFileName(f.FileName);
+            var key = $"files/{tenant.Id}/{Guid.NewGuid()}/{safe}";
+            var contentType = string.IsNullOrWhiteSpace(f.ContentType) ? "application/octet-stream" : f.ContentType;
+            await using (var s = f.OpenReadStream())
+                await storage.PutAsync(key, s, contentType);
+
+            Guid? itemId = Guid.TryParse(form["itemId"], out var iid) ? iid : null;
+            Guid? blockId = Guid.TryParse(form["blockId"], out var bid) ? bid : null;
+            var file = new StoredFile
+            {
+                TenantId = tenant.Id, ItemId = itemId, BlockId = blockId,
+                FileName = safe, StorageProvider = storage.Name, ContentType = contentType,
+                SizeBytes = f.Length, StorageKey = key, Status = "Available",
+            };
+            db.StoredFiles.Add(file);
+            await db.SaveChangesAsync();
+            return Results.Ok(new { file.Id, file.FileName, Size = file.SizeBytes, file.ContentType });
+        }).DisableAntiforgery();
+
+        // 6) Server-mediated DOWNLOAD — streams bytes through the API with a friendly
+        //    filename. Pairs with /files/direct for environments where presigned cloud
+        //    URLs aren't browser-reachable. (download-url remains the direct-cloud route.)
+        g.MapGet("/files/{fileId:guid}/raw", async (Guid fileId, AtriumDbContext db, IStorageProvider storage) =>
+        {
+            var file = await db.StoredFiles.FirstOrDefaultAsync(f => f.Id == fileId);
+            if (file is null) return Results.NotFound();
+            var stream = await storage.GetAsync(file.StorageKey);
+            return Results.File(stream, file.ContentType, file.FileName);
+        });
+
         // --- admin: which backend is configured (no secrets) ---
         g.MapGet("/admin/storage", (IStorageProvider storage, IOptions<StorageOptions> opt) =>
             Results.Ok(new

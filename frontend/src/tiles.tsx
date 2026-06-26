@@ -1,28 +1,30 @@
 import {
   Sparkles, Link2, StickyNote, BarChart3, Calendar, Users,
+  MousePointerClick, Clock, Plus, X,
 } from 'lucide-react'
 import { C, ACCENTS, DISPLAY, UI, hexA } from './theme'
 import type { ApiBlock, BlockInput } from './api'
 
-export type TileKind = 'banner' | 'links' | 'note' | 'metric' | 'events' | 'people'
+export type TileKind =
+  | 'banner' | 'links' | 'note' | 'metric' | 'events' | 'people' | 'button' | 'timeline'
 
 export type FontCfg = { family?: FontKey; weight?: number; scale?: number }
 
 export type Tile = {
-  uid: string            // local identity for keys + drag
+  uid: string
   kind: TileKind
-  w: number              // grid columns (>=1, free)
-  h: number              // grid rows (>=1, free)
-  x?: number             // grid column (1-based); undefined = unplaced
-  y?: number             // grid row (1-based)
+  w: number
+  h: number
+  x?: number
+  y?: number
   accent: string
-  tint?: string          // card background tint ('none' or hex)
+  tint?: string
   font?: FontCfg
   data: any
 }
 
 // ---- free-placement grid + style options ----
-export const COLS = 6   // free-placement grid width (matches .atr-grid)
+export const COLS = 6
 
 export const FONTS = {
   Sans: UI,
@@ -32,7 +34,6 @@ export const FONTS = {
 } as const
 export type FontKey = keyof typeof FONTS
 
-// light tints (pair with the accent palette); 'none' = white card
 export const TINTS = ['none', '#EEF2FF', '#F5F3FF', '#EFF6FF', '#ECFEFF', '#FDF2F8', '#FFF7ED', '#FEF2F2']
 
 export const fontStyle = (f?: FontCfg) => ({
@@ -41,7 +42,6 @@ export const fontStyle = (f?: FontCfg) => ({
   fontSize: f?.scale ? `${Math.round(14 * f.scale)}px` : undefined,
 } as const)
 
-// Assign x,y to tiles lacking a placement (first free cell, row by row).
 export function packLayout(tiles: Tile[]): Tile[] {
   const occ = new Set<string>()
   const placed = (t: Tile) => !!(t.x && t.y && t.x >= 1 && t.y >= 1)
@@ -70,20 +70,19 @@ export const KIND_META: Record<TileKind, { label: string; Icon: any }> = {
   metric: { label: 'Metric', Icon: BarChart3 },
   events: { label: 'Events', Icon: Calendar },
   people: { label: 'People', Icon: Users },
+  button: { label: 'Buttons', Icon: MousePointerClick },
+  timeline: { label: 'Timeline', Icon: Clock },
 }
 
 const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
 
-// ---- mapping: API Block (type=Tile, contentJson) <-> Tile ----
 export function blockToTile(b: ApiBlock): Tile {
   let cfg: any = {}
   try { cfg = b.contentJson ? JSON.parse(b.contentJson) : {} } catch { cfg = {} }
   return {
     uid: uid(),
     kind: (cfg.kind as TileKind) ?? 'note',
-    w: cfg.w ?? 1,
-    h: cfg.h ?? 1,
-    x: cfg.x, y: cfg.y,
+    w: cfg.w ?? 1, h: cfg.h ?? 1, x: cfg.x, y: cfg.y,
     accent: cfg.accent ?? ACCENTS[0],
     tint: cfg.tint ?? 'none',
     font: cfg.font,
@@ -110,18 +109,19 @@ export function defaultData(kind: TileKind): any {
     case 'metric': return { value: '0', label: 'Metric', delta: '—' }
     case 'events': return { items: [['New event', 'Soon'], ['New event', 'Soon']] }
     case 'people': return { heading: 'People', members: [{ name: 'Add a person', role: '' }] }
+    case 'button': return { heading: 'Actions', buttons: [{ label: 'Open', url: '#' }] }
+    case 'timeline': return { heading: 'Timeline', items: [['Kickoff', 'Step 1'], ['In progress', 'Step 2'], ['Done', 'Step 3']] }
   }
 }
 
 export function newTile(kind: TileKind): Tile {
   const size = kind === 'banner' ? { w: 2, h: 1 }
-    : kind === 'links' || kind === 'events' ? { w: 1, h: 2 }
+    : kind === 'links' || kind === 'events' || kind === 'timeline' ? { w: 1, h: 2 }
       : { w: 1, h: 1 }
   const accent = ACCENTS[Math.floor(Math.random() * ACCENTS.length)]
   return { uid: uid(), kind, ...size, accent, data: defaultData(kind) }
 }
 
-// Starter board seeded the first time a dashboard is created.
 export const STARTER_TILES: Tile[] = [
   { uid: uid(), kind: 'banner', w: 2, h: 1, accent: '#4F46E5',
     data: { title: 'Welcome to Atrium', subtitle: 'Your team’s home base — build it tile by tile.' } },
@@ -129,21 +129,48 @@ export const STARTER_TILES: Tile[] = [
     data: { items: ['Payroll', 'IT Help Desk', 'Brand Kit', 'Travel', 'Org Chart'] } },
   { uid: uid(), kind: 'metric', w: 1, h: 1, accent: '#2563EB',
     data: { value: '14', label: 'Open roles', delta: '+3 this week' } },
-  { uid: uid(), kind: 'events', w: 1, h: 2, accent: '#0EA5E9',
-    data: { items: [['All-hands', 'Thu · 10:00'], ['Design crit', 'Fri · 14:00'], ['Benefits webinar', 'Mon · 11:00']] } },
-  { uid: uid(), kind: 'people', w: 2, h: 1, accent: '#DB2777',
-    data: { heading: 'New this month', members: [
-      { name: 'Maya Okonkwo', role: 'Product' }, { name: 'Theo Park', role: 'Design' },
-      { name: 'Sana Iqbal', role: 'Engineering' }, { name: 'Diego Ruiz', role: 'Marketing' }] } },
+  { uid: uid(), kind: 'button', w: 1, h: 1, accent: '#4F46E5',
+    data: { heading: 'Quick actions', buttons: [{ label: 'New request', url: '#' }, { label: 'Book a room', url: '#' }] } },
+  { uid: uid(), kind: 'timeline', w: 2, h: 2, accent: '#0EA5E9',
+    data: { heading: 'Onboarding', items: [['Sign offer', 'Day 0'], ['Setup laptop', 'Day 1'], ['Meet the team', 'Week 1'], ['First ship', 'Week 2']] } },
   { uid: uid(), kind: 'note', w: 1, h: 1, accent: '#D97706',
     data: { text: 'Reminder: submit timesheets by Friday 🙂' } },
 ]
+
+// ---- inline edit primitives ----
+function Inp({ value, onChange, bold, big, ph }:
+  { value: string; onChange: (v: string) => void; bold?: boolean; big?: boolean; ph?: string }) {
+  return (
+    <input data-control value={value} placeholder={ph}
+      onChange={(e) => onChange(e.target.value)} onPointerDown={(e) => e.stopPropagation()}
+      style={{ border: `1px solid ${C.line}`, borderRadius: 6, padding: '4px 7px', width: '100%',
+        fontSize: big ? 20 : 13, fontWeight: bold ? 700 : 500, color: C.ink, outline: 'none',
+        fontFamily: 'inherit', background: '#fff' }} />
+  )
+}
+function MiniBtn({ onClick, children, danger }: { onClick: () => void; children: any; danger?: boolean }) {
+  return (
+    <button data-control onClick={onClick} onPointerDown={(e) => e.stopPropagation()}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: `1px dashed ${danger ? '#FECACA' : C.line}`,
+        background: danger ? '#FEF2F2' : '#fff', color: danger ? '#DC2626' : C.soft, borderRadius: 6,
+        padding: '3px 7px', fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+      {children}
+    </button>
+  )
+}
+const RemoveX = ({ onClick }: { onClick: () => void }) => (
+  <button data-control onClick={onClick} onPointerDown={(e) => e.stopPropagation()} title="Remove"
+    style={{ border: 'none', background: 'transparent', color: C.faint, cursor: 'pointer', padding: 2, lineHeight: 0 }}>
+    <X size={13} />
+  </button>
+)
 
 // ---- visual content for a tile, by kind ----
 export function TileBody({ tile, editable, onEdit }:
   { tile: Tile; editable: boolean; onEdit: (patch: any) => void }) {
   const a = tile.accent
   const { Icon } = KIND_META[tile.kind]
+  const d = tile.data ?? {}
 
   const Header = ({ children }: { children: any }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
@@ -151,39 +178,45 @@ export function TileBody({ tile, editable, onEdit }:
         background: hexA(a, 0.13), color: a, flex: '0 0 auto' }}>
         <Icon size={15} strokeWidth={2.2} />
       </span>
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: C.soft }}>{children}</span>
+      {editable
+        ? <Inp value={children ?? ''} bold onChange={(v) => onEdit({ heading: v })} />
+        : <span style={{ fontSize: 12.5, fontWeight: 600, color: C.soft }}>{children}</span>}
     </div>
   )
 
   if (tile.kind === 'banner') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'center', gap: 6 }}>
         <div style={{ width: 34, height: 34, borderRadius: 10, display: 'grid', placeItems: 'center',
-          background: hexA(a, 0.14), color: a, marginBottom: 12 }}>
+          background: hexA(a, 0.14), color: a, marginBottom: 6 }}>
           <Sparkles size={18} />
         </div>
-        <div style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 700, color: C.ink, lineHeight: 1.1, letterSpacing: -0.3 }}>
-          {tile.data.title}
-        </div>
-        <div style={{ fontSize: 13.5, color: C.soft, marginTop: 7, maxWidth: 440, lineHeight: 1.5 }}>
-          {tile.data.subtitle}
-        </div>
+        {editable ? <Inp value={d.title ?? ''} big bold onChange={(v) => onEdit({ title: v })} /> : (
+          <div style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 700, color: C.ink, lineHeight: 1.1, letterSpacing: -0.3 }}>{d.title}</div>
+        )}
+        {editable ? <Inp value={d.subtitle ?? ''} ph="Subtitle" onChange={(v) => onEdit({ subtitle: v })} /> : (
+          <div style={{ fontSize: 13.5, color: C.soft, maxWidth: 440, lineHeight: 1.5 }}>{d.subtitle}</div>
+        )}
       </div>
     )
   }
 
   if (tile.kind === 'links') {
+    const items: string[] = d.items ?? []
+    const set = (i: number, v: string) => onEdit({ items: items.map((x, j) => (j === i ? v : x)) })
     return (
       <div style={{ height: '100%' }}>
-        <Header>Quick links</Header>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {(tile.data.items ?? []).map((t: string, i: number) => (
-            <div key={i} className="atr-row" style={{ display: 'flex', alignItems: 'center', gap: 9,
-              padding: '7px 8px', borderRadius: 8, fontSize: 13, fontWeight: 500, color: C.ink }}>
+        <Header>{d.heading ?? 'Quick links'}</Header>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: editable ? 6 : 2 }}>
+          {items.map((t, i) => (
+            <div key={i} className={editable ? '' : 'atr-row'} style={{ display: 'flex', alignItems: 'center', gap: 9,
+              padding: editable ? 0 : '7px 8px', borderRadius: 8, fontSize: 13, fontWeight: 500, color: C.ink }}>
               <span style={{ width: 6, height: 6, borderRadius: 999, background: a, flex: '0 0 auto' }} />
-              <span style={{ flex: 1 }}>{t}</span>
+              {editable ? <><Inp value={t} onChange={(v) => set(i, v)} /><RemoveX onClick={() => onEdit({ items: items.filter((_, j) => j !== i) })} /></>
+                : <span style={{ flex: 1 }}>{t}</span>}
             </div>
           ))}
+          {editable && <MiniBtn onClick={() => onEdit({ items: [...items, 'New link'] })}><Plus size={12} /> Add link</MiniBtn>}
         </div>
       </div>
     )
@@ -193,68 +226,115 @@ export function TileBody({ tile, editable, onEdit }:
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
-          <StickyNote size={15} color={a} />
-          <span style={{ fontSize: 12, fontWeight: 600, color: C.soft }}>Note</span>
+          <StickyNote size={15} color={a} /><span style={{ fontSize: 12, fontWeight: 600, color: C.soft }}>Note</span>
         </div>
         {editable ? (
-          <textarea
-            value={tile.data.text ?? ''}
-            data-control
+          <textarea value={d.text ?? ''} data-control onPointerDown={(e) => e.stopPropagation()}
             onChange={(e) => onEdit({ text: e.target.value })}
-            style={{ flex: 1, resize: 'none', border: `1px solid ${C.line}`, borderRadius: 8, padding: 8,
-              fontSize: 13, color: C.ink, lineHeight: 1.5, outline: 'none', fontFamily: 'inherit',
-              background: hexA(a, 0.05) }}
-          />
-        ) : (
-          <div style={{ fontSize: 13.5, color: C.ink, lineHeight: 1.5 }}>{tile.data.text}</div>
-        )}
+            style={{ flex: 1, minHeight: 60, resize: 'none', border: `1px solid ${C.line}`, borderRadius: 8, padding: 8,
+              fontSize: 13, color: C.ink, lineHeight: 1.5, outline: 'none', fontFamily: 'inherit', background: hexA(a, 0.05) }} />
+        ) : <div style={{ fontSize: 13.5, color: C.ink, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{d.text}</div>}
       </div>
     )
   }
 
   if (tile.kind === 'metric') {
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <span style={{ width: 24, height: 24, borderRadius: 7, background: hexA(a, 0.13), color: a,
-            display: 'grid', placeItems: 'center' }}>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 24, height: 24, borderRadius: 7, background: hexA(a, 0.13), color: a, display: 'grid', placeItems: 'center' }}>
             <BarChart3 size={14} />
           </span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: C.soft }}>{tile.data.label}</span>
+          {editable ? <Inp value={d.label ?? ''} onChange={(v) => onEdit({ label: v })} />
+            : <span style={{ fontSize: 12, fontWeight: 600, color: C.soft }}>{d.label}</span>}
         </div>
-        <div style={{ fontFamily: DISPLAY, fontSize: 38, fontWeight: 700, color: C.ink, lineHeight: 1, letterSpacing: -1 }}>
-          {tile.data.value}
-        </div>
-        <div style={{ fontSize: 11.5, color: a, fontWeight: 600, marginTop: 6 }}>{tile.data.delta}</div>
+        {editable ? <Inp value={d.value ?? ''} big bold onChange={(v) => onEdit({ value: v })} /> : (
+          <div style={{ fontFamily: DISPLAY, fontSize: 38, fontWeight: 700, color: C.ink, lineHeight: 1, letterSpacing: -1 }}>{d.value}</div>
+        )}
+        {editable ? <Inp value={d.delta ?? ''} ph="+3 this week" onChange={(v) => onEdit({ delta: v })} />
+          : <div style={{ fontSize: 11.5, color: a, fontWeight: 600 }}>{d.delta}</div>}
       </div>
     )
   }
 
-  if (tile.kind === 'events') {
+  if (tile.kind === 'events' || tile.kind === 'timeline') {
+    const items: [string, string][] = d.items ?? []
+    const set = (i: number, k: 0 | 1, v: string) =>
+      onEdit({ items: items.map((row, j) => (j === i ? (k === 0 ? [v, row[1]] : [row[0], v]) : row)) })
+    const isTl = tile.kind === 'timeline'
     return (
       <div style={{ height: '100%' }}>
-        <Header>Upcoming</Header>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(tile.data.items ?? []).map((ev: [string, string], i: number) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 999, background: a, flex: '0 0 auto' }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{ev[0]}</div>
-                <div style={{ fontSize: 11.5, color: C.faint }}>{ev[1]}</div>
-              </div>
+        <Header>{d.heading ?? (isTl ? 'Timeline' : 'Upcoming')}</Header>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: editable ? 8 : 10,
+          ...(isTl && !editable ? { borderLeft: `2px solid ${hexA(a, 0.25)}`, marginLeft: 4, paddingLeft: 12 } : {}) }}>
+          {items.map((ev, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+              <span style={{ width: isTl ? 9 : 8, height: isTl ? 9 : 8, borderRadius: 999, background: a, flex: '0 0 auto',
+                ...(isTl && !editable ? { position: 'absolute', left: -18 } : {}) }} />
+              {editable ? (
+                <>
+                  <div style={{ flex: 1, display: 'flex', gap: 6 }}>
+                    <Inp value={ev[0]} onChange={(v) => set(i, 0, v)} />
+                    <div style={{ width: 90 }}><Inp value={ev[1]} ph="when" onChange={(v) => set(i, 1, v)} /></div>
+                  </div>
+                  <RemoveX onClick={() => onEdit({ items: items.filter((_, j) => j !== i) })} />
+                </>
+              ) : (
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{ev[0]}</div>
+                  <div style={{ fontSize: 11.5, color: C.faint }}>{ev[1]}</div>
+                </div>
+              )}
             </div>
           ))}
+          {editable && <MiniBtn onClick={() => onEdit({ items: [...items, ['New', '']] })}><Plus size={12} /> Add {isTl ? 'step' : 'event'}</MiniBtn>}
+        </div>
+      </div>
+    )
+  }
+
+  if (tile.kind === 'button') {
+    const btns: { label: string; url: string }[] = d.buttons ?? []
+    const set = (i: number, k: 'label' | 'url', v: string) =>
+      onEdit({ buttons: btns.map((b, j) => (j === i ? { ...b, [k]: v } : b)) })
+    return (
+      <div style={{ height: '100%' }}>
+        <Header>{d.heading ?? 'Actions'}</Header>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {btns.map((b, i) => editable ? (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Inp value={b.label} ph="Label" onChange={(v) => set(i, 'label', v)} />
+              <div style={{ width: 110 }}><Inp value={b.url} ph="https://" onChange={(v) => set(i, 'url', v)} /></div>
+              <RemoveX onClick={() => onEdit({ buttons: btns.filter((_, j) => j !== i) })} />
+            </div>
+          ) : (
+            <a key={i} href={b.url || '#'} target="_blank" rel="noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, textDecoration: 'none',
+                background: a, color: '#fff', borderRadius: 10, padding: '9px 13px', fontSize: 13, fontWeight: 600 }}>
+              <MousePointerClick size={14} /> {b.label}
+            </a>
+          ))}
+          {editable && <MiniBtn onClick={() => onEdit({ buttons: [...btns, { label: 'Button', url: '#' }] })}><Plus size={12} /> Add button</MiniBtn>}
         </div>
       </div>
     )
   }
 
   // people
+  const members: any[] = d.members ?? []
+  const setM = (i: number, k: string, v: string) =>
+    onEdit({ members: members.map((m, j) => (j === i ? { ...m, [k]: v } : m)) })
   return (
     <div style={{ height: '100%' }}>
-      <Header>{tile.data.heading ?? 'People'}</Header>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
-        {(tile.data.members ?? []).map((p: any, i: number) => (
+      <Header>{d.heading ?? 'People'}</Header>
+      <div style={{ display: 'flex', flexDirection: editable ? 'column' : 'row', flexWrap: 'wrap', gap: editable ? 8 : 14 }}>
+        {members.map((p, i) => editable ? (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Inp value={p.name ?? ''} ph="Name" onChange={(v) => setM(i, 'name', v)} />
+            <div style={{ width: 110 }}><Inp value={p.role ?? ''} ph="Role" onChange={(v) => setM(i, 'role', v)} /></div>
+            <RemoveX onClick={() => onEdit({ members: members.filter((_, j) => j !== i) })} />
+          </div>
+        ) : (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <span style={{ width: 34, height: 34, borderRadius: 999, background: a, color: '#fff',
               display: 'grid', placeItems: 'center', fontSize: 12.5, fontWeight: 700 }}>
@@ -266,6 +346,7 @@ export function TileBody({ tile, editable, onEdit }:
             </div>
           </div>
         ))}
+        {editable && <MiniBtn onClick={() => onEdit({ members: [...members, { name: 'New person', role: '' }] })}><Plus size={12} /> Add person</MiniBtn>}
       </div>
     </div>
   )

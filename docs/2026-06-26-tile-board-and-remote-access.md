@@ -129,6 +129,37 @@ rides inside a tile's `ContentJson.data`.
 - Note: authenticated SharePoint pages can't be fetched anonymously by the URL
   mode — the Paste-HTML / CSV paths cover those.
 
+### h. BYO object storage — files live in the customer's cloud  (commit pending)
+- Applied the storage-service overlay: `Storage/` with `IStorageProvider`
+  (put/get/delete/exists/sign-upload/sign-download), adapters for **S3, MinIO,
+  Azure, GCS**, `StorageOptions` (env-bound `Storage__*`), and
+  `StorageRegistration` (one DI `switch` = the only place a backend is chosen).
+- `FileEndpoints.cs`: `POST /api/files/upload-url` (presigned PUT) → `POST
+  /api/files` (confirm + record StoredFile) → `GET /api/files/{id}/download-url`
+  (presigned GET) → `DELETE /api/files/{id}`, plus `GET /api/admin/storage` and
+  `POST /api/admin/storage/test` (live put→exists→get→delete self-test).
+- Bytes go **browser ↔ cloud directly** via short-lived signed URLs; the server
+  only signs and tracks metadata.
+- **StoredFile aligned** (the flagged mismatch): added `FileName`, `Status`,
+  nullable `ItemId`, `BlockId`; kept existing `SizeBytes`/`Checksum` (endpoints
+  edited to match). New EF migration `StoredFileFilesService`.
+- **Config:** `infra/app/docker-compose.yml` gained a `Storage__*` block pointed
+  at the in-stack MinIO (`minio:9000`, bucket `atrium-dev`, reusing
+  `${MINIO_PASSWORD}` — no new secret). Switching clouds later = change
+  `Storage__Provider` + that provider's keys, restart. NuGet: AWSSDK.S3,
+  Azure.Storage.Blobs, Google.Cloud.Storage.V1.
+- **Verified on real MinIO:** `/api/admin/storage` reports provider `s3`/bucket
+  `atrium-dev`; the self-test returns `ok:true` with all five steps green;
+  `upload-url` mints a valid presigned PUT.
+- Caveats (honest): the **GCS adapter** was patched to compile against
+  Google.Cloud.Storage.V1 4.15 (its `SignAsync` content-headers overload
+  differs) — it no longer binds Content-Type into the signature and is still an
+  **unverified draft** (so are Azure/GCS generally). The presigned host on dev
+  is the internal `minio:9000` (and SDK defaults to https) — fine for the
+  server self-test, but **browser** uploads need a browser-reachable MinIO
+  endpoint; production clouds are public HTTPS so this is dev-only. No in-UI
+  admin panel wired yet (StorageSettings.tsx skipped — needs routing); use curl.
+
 ### Verification done (headless, server-side)
 - Frontend build clean each time (`tsc -b && vite build`, ~190 KB bundle).
 - Deployed via `~/atrium_deploy.sh` (build+push to `localhost:5000`, compose up

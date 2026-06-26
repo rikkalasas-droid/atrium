@@ -1,6 +1,7 @@
 using Atrium.Api.Data;
 using Atrium.Api.Domain;
 using Atrium.Api.Endpoints;
+using Atrium.Api.Storage;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +11,9 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
 
 builder.Services.AddDbContext<AtriumDbContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+
+// ---- BYO object storage (S3 / MinIO / Azure / GCS) chosen from Storage__* config ----
+builder.Services.AddAtriumStorage(builder.Configuration);
 
 var app = builder.Build();
 app.UseCors();
@@ -72,5 +76,8 @@ app.MapContentEndpoints();
 
 // ---- migration import (server-side URL fetch with SSRF guard) ----
 app.MapImportEndpoints();
+
+// ---- BYO storage: signed-URL upload/download + admin self-test ----
+app.MapStorageEndpoints();
 
 app.Run();

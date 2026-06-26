@@ -1,16 +1,19 @@
+import { useState } from 'react'
 import {
   Sparkles, Link2, StickyNote, BarChart3, Calendar, Users,
   MousePointerClick, Clock, Plus, X, Shapes,
   Type, Image as ImageIcon, Code2, Minus, ExternalLink, FileText,
   Star, Heart, Flag, CheckCircle2, Rocket, Zap, Bell, Mail,
   MapPin, Briefcase, Award, Target, Coffee, Lightbulb, Smile, Phone,
+  ClipboardList, Workflow as WorkflowIcon, Circle, Check, ChevronRight,
 } from 'lucide-react'
 import { C, ACCENTS, DISPLAY, UI, hexA } from './theme'
 import { MorphKey, MORPHS, morphCard } from './morph'
 import type { ApiBlock, BlockInput } from './api'
 
 export type TileKind =
-  | 'banner' | 'links' | 'note' | 'metric' | 'events' | 'people' | 'button' | 'timeline' | 'custom'
+  | 'banner' | 'links' | 'note' | 'metric' | 'events' | 'people' | 'button' | 'timeline'
+  | 'form' | 'workflow' | 'custom'
 
 export type FontCfg = { family?: FontKey; weight?: number; scale?: number }
 
@@ -82,8 +85,22 @@ export const KIND_META: Record<TileKind, { label: string; Icon: any }> = {
   people: { label: 'People', Icon: Users },
   button: { label: 'Buttons', Icon: MousePointerClick },
   timeline: { label: 'Timeline', Icon: Clock },
+  form: { label: 'Form', Icon: ClipboardList },
+  workflow: { label: 'Workflow', Icon: WorkflowIcon },
   custom: { label: 'Custom', Icon: Shapes },
 }
+
+// form field kinds (the "smart" inputs a builder can drop into a form)
+export type FieldKind = 'short' | 'long' | 'email' | 'number' | 'date' | 'select' | 'checkbox'
+export const FIELD_KINDS: { t: FieldKind; label: string }[] = [
+  { t: 'short', label: 'Short text' },
+  { t: 'long', label: 'Paragraph' },
+  { t: 'email', label: 'Email' },
+  { t: 'number', label: 'Number' },
+  { t: 'date', label: 'Date' },
+  { t: 'select', label: 'Dropdown' },
+  { t: 'checkbox', label: 'Checkbox' },
+]
 
 // ---- icon library (per-step timeline/event icons + icon element) ----
 export const ICONS = {
@@ -168,15 +185,31 @@ export function defaultData(kind: TileKind): any {
     case 'people': return { heading: 'People', members: [{ name: 'Add a person', role: '' }] }
     case 'button': return { heading: 'Actions', buttons: [{ label: 'Open', url: '#' }] }
     case 'timeline': return { heading: 'Timeline', items: [['Kickoff', 'Step 1'], ['In progress', 'Step 2'], ['Done', 'Step 3']] }
+    case 'form': return {
+      heading: 'Request form', submitLabel: 'Submit',
+      fields: [
+        { id: uid(), t: 'short', label: 'Your name', required: true },
+        { id: uid(), t: 'email', label: 'Email', required: true },
+        { id: uid(), t: 'select', label: 'Type of request', options: ['Question', 'Bug', 'Idea'] },
+        { id: uid(), t: 'long', label: 'Details' },
+      ],
+      responses: [],
+    }
+    case 'workflow': return {
+      heading: 'Approval workflow',
+      steps: [{ id: uid(), label: 'Submitted' }, { id: uid(), label: 'In review' }, { id: uid(), label: 'Approved' }],
+      current: 0,
+    }
     case 'custom': return { heading: 'Custom', elements: [{ id: uid(), t: 'text', text: 'Add anything you like — text, images, embeds, buttons…' }] }
   }
 }
 
 export function newTile(kind: TileKind): Tile {
   const size = kind === 'banner' ? { w: 2, h: 1 }
-    : kind === 'custom' ? { w: 2, h: 2 }
-      : kind === 'links' || kind === 'events' || kind === 'timeline' ? { w: 1, h: 2 }
-        : { w: 1, h: 1 }
+    : kind === 'form' ? { w: 2, h: 3 }
+      : kind === 'custom' || kind === 'workflow' ? { w: 2, h: 2 }
+        : kind === 'links' || kind === 'events' || kind === 'timeline' ? { w: 1, h: 2 }
+          : { w: 1, h: 1 }
   const accent = ACCENTS[Math.floor(Math.random() * ACCENTS.length)]
   return { uid: uid(), kind, ...size, accent, data: defaultData(kind) }
 }
@@ -243,11 +276,14 @@ function IconPicker({ value, onPick }: { value?: string; onPick: (k: string) => 
 }
 
 // ---- kind-specific content for a tile ----
-function KindBody({ tile, editable, onEdit }:
-  { tile: Tile; editable: boolean; onEdit: (patch: any) => void }) {
+function KindBody({ tile, editable, onEdit, onSubmit }:
+  { tile: Tile; editable: boolean; onEdit: (patch: any) => void; onSubmit?: (patch: any) => void }) {
   const a = tile.accent
   const { Icon } = KIND_META[tile.kind]
   const d = tile.data ?? {}
+
+  if (tile.kind === 'form') return <FormBody tile={tile} editable={editable} onEdit={onEdit} onSubmit={onSubmit} />
+  if (tile.kind === 'workflow') return <WorkflowBody tile={tile} editable={editable} onEdit={onEdit} onSubmit={onSubmit} />
 
   if (tile.kind === 'custom') {
     if (editable) return <Inp value={d.heading ?? ''} bold ph="Title (optional)" onChange={(v) => onEdit({ heading: v })} />
@@ -451,6 +487,236 @@ function KindBody({ tile, editable, onEdit }:
   )
 }
 
+// shared header for interactive tiles (icon badge + title)
+function TileHead({ a, Icon, editable, value, onChange }:
+  { a: string; Icon: any; editable: boolean; value: string; onChange: (v: string) => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+      <span style={{ width: 28, height: 28, borderRadius: 8, display: 'grid', placeItems: 'center',
+        background: hexA(a, 0.14), color: a, flex: '0 0 auto' }}><Icon size={16} strokeWidth={2.2} /></span>
+      {editable ? <Inp value={value} bold onChange={onChange} />
+        : <span style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 700, color: C.ink }}>{value}</span>}
+    </div>
+  )
+}
+
+// ---- Form tile: builder (Arrange) + live fill that remembers responses ----
+function FormBody({ tile, editable, onEdit, onSubmit }:
+  { tile: Tile; editable: boolean; onEdit: (patch: any) => void; onSubmit?: (patch: any) => void }) {
+  const a = tile.accent
+  const d = tile.data ?? {}
+  const fields: any[] = d.fields ?? []
+  const responses: any[] = d.responses ?? []
+  const [vals, setVals] = useState<Record<string, any>>({})
+  const [sent, setSent] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [showResp, setShowResp] = useState(false)
+  const sel: any = { border: `1px solid ${C.line}`, borderRadius: 6, padding: '4px 7px', fontSize: 11.5,
+    color: C.soft, background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }
+  const inputStyle: any = { width: '100%', border: `1px solid ${C.line}`, borderRadius: 8, padding: '8px 10px',
+    fontSize: 13, color: C.ink, outline: 'none', fontFamily: 'inherit', background: '#fff' }
+  const setField = (i: number, patch: any) => onEdit({ fields: fields.map((f, j) => (j === i ? { ...f, ...patch } : f)) })
+  const addField = (t: FieldKind) => onEdit({ fields: [...fields, { id: uid(), t,
+    label: FIELD_KINDS.find((k) => k.t === t)!.label, ...(t === 'select' ? { options: ['Option 1', 'Option 2'] } : {}) }] })
+
+  if (editable) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <TileHead a={a} Icon={ClipboardList} editable value={d.heading ?? 'Form'} onChange={(v) => onEdit({ heading: v })} />
+        {fields.map((f, i) => (
+          <div key={f.id} style={{ border: `1px solid ${C.line}`, borderRadius: 9, padding: 8, background: '#fff',
+            display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <Inp value={f.label ?? ''} ph="Question" onChange={(v) => setField(i, { label: v })} />
+              <RemoveX onClick={() => onEdit({ fields: fields.filter((_, j) => j !== i) })} />
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <select data-control value={f.t} onPointerDown={(e) => e.stopPropagation()}
+                onChange={(e) => setField(i, { t: e.target.value })} style={sel}>
+                {FIELD_KINDS.map((k) => <option key={k.t} value={k.t}>{k.label}</option>)}
+              </select>
+              <MiniBtn onClick={() => setField(i, { required: !f.required })}>
+                <span style={{ fontWeight: f.required ? 700 : 500, color: f.required ? a : C.soft }}>
+                  {f.required ? 'Required' : 'Optional'}</span>
+              </MiniBtn>
+            </div>
+            {f.t === 'select' && (
+              <Inp value={(f.options ?? []).join(', ')} ph="Option 1, Option 2, …"
+                onChange={(v) => setField(i, { options: v.split(',').map((s) => s.trim()).filter(Boolean) })} />
+            )}
+          </div>
+        ))}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {FIELD_KINDS.map((k) => <MiniBtn key={k.t} onClick={() => addField(k.t)}><Plus size={12} /> {k.label}</MiniBtn>)}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11.5, color: C.soft }}>Button</span>
+          <Inp value={d.submitLabel ?? 'Submit'} onChange={(v) => onEdit({ submitLabel: v })} />
+        </div>
+        <div>
+          <MiniBtn onClick={() => setShowResp((s) => !s)}>
+            <ClipboardList size={12} /> {responses.length} response{responses.length === 1 ? '' : 's'}
+          </MiniBtn>
+          {showResp && responses.length > 0 && (
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {responses.slice().reverse().map((r) => (
+                <div key={r.id} style={{ border: `1px solid ${C.line}`, borderRadius: 8, padding: 8, fontSize: 12 }}>
+                  <div style={{ color: C.faint, fontSize: 11, marginBottom: 4 }}>{new Date(r.at).toLocaleString()}</div>
+                  {fields.map((f) => (
+                    <div key={f.id} style={{ display: 'flex', gap: 6 }}>
+                      <span style={{ color: C.soft, fontWeight: 600 }}>{f.label}:</span>
+                      <span style={{ color: C.ink }}>{String(r.values?.[f.id] ?? '—')}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ---- live fill ----
+  if (sent) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 9, padding: '6px 0' }}>
+        <span style={{ width: 42, height: 42, borderRadius: 12, display: 'grid', placeItems: 'center',
+          background: hexA(a, 0.14), color: a }}><Check size={22} /></span>
+        <div style={{ fontFamily: DISPLAY, fontSize: 17, fontWeight: 700, color: C.ink }}>Thanks — saved!</div>
+        <div style={{ fontSize: 13, color: C.soft }}>Your response was recorded.</div>
+        <MiniBtn onClick={() => setSent(false)}><Plus size={12} /> Submit another</MiniBtn>
+      </div>
+    )
+  }
+  const renderField = (f: any) => {
+    const v = vals[f.id] ?? (f.t === 'checkbox' ? false : '')
+    const set = (val: any) => setVals((s) => ({ ...s, [f.id]: val }))
+    switch (f.t) {
+      case 'long': return <textarea value={v} onChange={(e) => set(e.target.value)} style={{ ...inputStyle, minHeight: 64, resize: 'vertical' }} />
+      case 'select': return (
+        <select value={v} onChange={(e) => set(e.target.value)} style={inputStyle}>
+          <option value="">Choose…</option>
+          {(f.options ?? []).map((o: string, i: number) => <option key={i} value={o}>{o}</option>)}
+        </select>
+      )
+      case 'checkbox': return (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.ink, cursor: 'pointer' }}>
+          <input type="checkbox" checked={!!v} onChange={(e) => set(e.target.checked)} /> {f.label}
+        </label>
+      )
+      case 'email': return <input type="email" value={v} onChange={(e) => set(e.target.value)} placeholder="name@email.com" style={inputStyle} />
+      case 'number': return <input type="number" value={v} onChange={(e) => set(e.target.value)} style={inputStyle} />
+      case 'date': return <input type="date" value={v} onChange={(e) => set(e.target.value)} style={inputStyle} />
+      default: return <input value={v} onChange={(e) => set(e.target.value)} style={inputStyle} />
+    }
+  }
+  const submit = () => {
+    for (const f of fields) {
+      if (!f.required) continue
+      const v = vals[f.id]
+      const empty = f.t === 'checkbox' ? !v : !String(v ?? '').trim()
+      if (empty) { setErr(`“${f.label}” is required`); return }
+    }
+    setErr(null)
+    const response = { id: uid(), at: new Date().toISOString(), values: vals }
+    onSubmit?.({ responses: [...responses, response] })
+    setVals({}); setSent(true)
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <TileHead a={a} Icon={ClipboardList} editable={false} value={d.heading ?? 'Form'} onChange={() => {}} />
+      {fields.map((f) => (
+        <div key={f.id} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {f.t !== 'checkbox' && (
+            <label style={{ fontSize: 12.5, fontWeight: 600, color: C.soft }}>
+              {f.label}{f.required ? <span style={{ color: '#DC2626' }}> *</span> : null}
+            </label>
+          )}
+          {renderField(f)}
+        </div>
+      ))}
+      {err && <div style={{ fontSize: 12.5, color: '#DC2626' }}>{err}</div>}
+      <button onClick={submit} style={{ alignSelf: 'flex-start', background: a, color: '#fff', border: 'none',
+        borderRadius: 10, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
+        {d.submitLabel ?? 'Submit'}
+      </button>
+    </div>
+  )
+}
+
+// ---- Workflow tile: builder + live stage tracker that remembers progress ----
+function WorkflowBody({ tile, editable, onEdit, onSubmit }:
+  { tile: Tile; editable: boolean; onEdit: (patch: any) => void; onSubmit?: (patch: any) => void }) {
+  const a = tile.accent
+  const d = tile.data ?? {}
+  const steps: any[] = d.steps ?? []
+  const current: number = d.current ?? 0
+  const total = steps.length
+  const setStep = (i: number, patch: any) => onEdit({ steps: steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) })
+
+  if (editable) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <TileHead a={a} Icon={WorkflowIcon} editable value={d.heading ?? 'Workflow'} onChange={(v) => onEdit({ heading: v })} />
+        {steps.map((s, i) => (
+          <div key={s.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ width: 22, height: 22, borderRadius: 999, flex: '0 0 auto', display: 'grid', placeItems: 'center',
+              background: hexA(a, 0.14), color: a, fontSize: 11, fontWeight: 700 }}>{i + 1}</span>
+            <Inp value={s.label ?? ''} ph="Step name" onChange={(v) => setStep(i, { label: v })} />
+            <RemoveX onClick={() => onEdit({ steps: steps.filter((_, j) => j !== i) })} />
+          </div>
+        ))}
+        <MiniBtn onClick={() => onEdit({ steps: [...steps, { id: uid(), label: 'New step' }] })}><Plus size={12} /> Add step</MiniBtn>
+      </div>
+    )
+  }
+
+  // ---- live tracker ----
+  const done = current >= total
+  return (
+    <div>
+      <TileHead a={a} Icon={WorkflowIcon} editable={false} value={d.heading ?? 'Workflow'} onChange={() => {}} />
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {steps.map((s, i) => {
+          const st = i < current ? 'done' : i === current ? 'active' : 'todo'
+          const last = i === total - 1
+          return (
+            <div key={s.id} onClick={() => onSubmit?.({ current: i })}
+              style={{ display: 'flex', gap: 11, cursor: 'pointer', paddingBottom: last ? 0 : 14 }}>
+              <div style={{ width: 28, flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span style={{ width: 28, height: 28, borderRadius: 999, display: 'grid', placeItems: 'center', flex: '0 0 auto',
+                  background: st === 'done' ? a : st === 'active' ? hexA(a, 0.14) : '#fff',
+                  border: st === 'todo' ? `1.5px solid ${C.line}` : 'none', color: st === 'done' ? '#fff' : a }}>
+                  {st === 'done' ? <Check size={15} /> : st === 'active' ? <span style={{ width: 9, height: 9, borderRadius: 999, background: a }} /> : <Circle size={9} color={C.faint} />}
+                </span>
+                {!last && <span style={{ width: 2, flex: 1, minHeight: 14, background: i < current ? a : hexA(a, 0.2) }} />}
+              </div>
+              <div style={{ paddingTop: 4 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: st === 'todo' ? C.faint : C.ink }}>{s.label}</div>
+                <div style={{ fontSize: 11, color: st === 'active' ? a : C.faint, fontWeight: st === 'active' ? 600 : 400 }}>
+                  {st === 'done' ? 'Done' : st === 'active' ? 'In progress' : 'Pending'}</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+        <MiniBtn onClick={() => onSubmit?.({ current: Math.max(0, current - 1) })}>← Back</MiniBtn>
+        {done ? (
+          <span style={{ fontSize: 13, fontWeight: 700, color: a }}>Completed 🎉</span>
+        ) : (
+          <button onClick={() => onSubmit?.({ current: current + 1 })}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: a, color: '#fff', border: 'none',
+              borderRadius: 9, padding: '8px 13px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Advance <ChevronRight size={15} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ---- render one freeform element (optionally wrapped in a morph surface) ----
 function renderEl(el: Element, a: string, nav?: NavCtx) {
   const inner = elContent(el, a, nav)
@@ -610,11 +876,11 @@ function Elements({ tile, editable, onEdit, nav }:
 }
 
 // ---- full tile body: kind content + freeform elements ----
-export function TileBody({ tile, editable, onEdit, nav }:
-  { tile: Tile; editable: boolean; onEdit: (patch: any) => void; nav?: NavCtx }) {
+export function TileBody({ tile, editable, onEdit, nav, onSubmit }:
+  { tile: Tile; editable: boolean; onEdit: (patch: any) => void; nav?: NavCtx; onSubmit?: (patch: any) => void }) {
   return (
     <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-      <KindBody tile={tile} editable={editable} onEdit={onEdit} />
+      <KindBody tile={tile} editable={editable} onEdit={onEdit} onSubmit={onSubmit} />
       <Elements tile={tile} editable={editable} onEdit={onEdit} nav={nav} />
     </div>
   )

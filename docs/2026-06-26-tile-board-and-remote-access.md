@@ -84,6 +84,29 @@ rides inside a tile's `ContentJson.data`.
   Elements → renderEl) instead of opening a URL. Falls back to URL when no
   page is chosen.
 
+### f. Forms & Workflows — interactive tiles that remember  (commit pending)
+- Two new tile kinds, both with a **builder** (Arrange mode) and a **live**
+  mode, and both persist their state.
+- **Form tile** (`ClipboardList`): the builder adds fields — Short text,
+  Paragraph, Email, Number, Date, Dropdown, Checkbox — each with a label,
+  required toggle, and (for dropdowns) comma-separated options; plus an
+  editable submit-button label. In live mode it renders a real fillable form
+  with validation of required fields; on submit the response is appended to
+  `data.responses` and **saved immediately**, then a "Thanks — saved!"
+  confirmation shows ("Submit another" resets). The builder shows an
+  "N responses" viewer listing every submission (timestamp + values).
+- **Workflow tile** (`Workflow`): the builder edits an ordered list of named
+  steps. In live mode it's a stage tracker — past steps show a check, the
+  current step is highlighted "In progress", later steps are "Pending";
+  click a step to jump, or use Back / Advance. Progress (`data.current`) is
+  remembered. Shows "Completed 🎉" at the end.
+- **Persistence mechanism:** the board previously only saved in Arrange mode.
+  Added `pushBlocks(nextTiles)` (save an explicit tile array) and
+  `submitData(uid, patch)` (merge into a tile's data and persist immediately),
+  wired to a new `onSubmit` prop threaded `Board → TileBody → KindBody →
+  Form/WorkflowBody`. Frontend-only — responses/progress live in the tile's
+  `ContentJson.data`.
+
 ### Verification done (headless, server-side)
 - Frontend build clean each time (`tsc -b && vite build`, ~190 KB bundle).
 - Deployed via `~/atrium_deploy.sh` (build+push to `localhost:5000`, compose up

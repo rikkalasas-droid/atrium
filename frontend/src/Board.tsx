@@ -63,16 +63,26 @@ export default function Board({ itemId, spaceName, pages, currentId,
   }, [itemId])
   useEffect(() => { load() }, [load])
 
+  const pushBlocks = useCallback(async (nextTiles: Tile[]) => {
+    const boardBlock = { type: 'Board', position: 0, contentJson: JSON.stringify({ morph: boardMorph }) }
+    const blocks = [boardBlock, ...nextTiles.map((t, i) => tileToBlock(t, i + 1))]
+    const res = await api.replaceBlocks(itemId, blocks)
+    setVersion(res.currentVersion)
+    return res
+  }, [itemId, boardMorph])
+
   const save = useCallback(async () => {
     setSaving('saving')
-    try {
-      const boardBlock = { type: 'Board', position: 0, contentJson: JSON.stringify({ morph: boardMorph }) }
-      const blocks = [boardBlock, ...tiles.map((t, i) => tileToBlock(t, i + 1))]
-      const res = await api.replaceBlocks(itemId, blocks)
-      setVersion(res.currentVersion); setDirty(false); setSaving('saved')
-      setTimeout(() => setSaving('idle'), 1600)
-    } catch { setSaving('error') }
-  }, [itemId, tiles, boardMorph])
+    try { await pushBlocks(tiles); setDirty(false); setSaving('saved'); setTimeout(() => setSaving('idle'), 1600) }
+    catch { setSaving('error') }
+  }, [pushBlocks, tiles])
+
+  // immediate persist for live interactions (form submit, workflow advance)
+  const submitData = useCallback(async (uid: string, patch: any) => {
+    const next = tiles.map((t) => (t.uid === uid ? { ...t, data: { ...t.data, ...patch } } : t))
+    setTiles(next)
+    try { await pushBlocks(next) } catch { /* surfaced via next save */ }
+  }, [tiles, pushBlocks])
 
   const setBoard = (m: MorphKey) => { setBoardMorph(m); setDirty(true) }
 
@@ -357,7 +367,7 @@ export default function Board({ itemId, spaceName, pages, currentId,
                     <div style={{ position: 'absolute', left: 0, top: 14, width: 3, height: 22, borderRadius: 3, background: tile.accent }} />
                     <div style={{ height: '100%', ...fontStyle(tile.font) }}>
                       <TileBody tile={tile} editable={arrange} onEdit={(p) => editData(tile.uid, p)}
-                        nav={{ pages, onNavigate }} />
+                        nav={{ pages, onNavigate }} onSubmit={(p) => submitData(tile.uid, p)} />
                     </div>
                     {arrange && (
                       <>

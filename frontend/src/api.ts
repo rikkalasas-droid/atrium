@@ -34,6 +34,10 @@ export const api = {
     body: { title: string; type?: string; fieldsJson?: string; blocks?: BlockInput[] },
   ): Promise<any> => req(`/spaces/${spaceId}/items`, { method: 'POST', body: JSON.stringify(body) }),
   getItem: (itemId: string): Promise<ApiItem> => req(`/items/${itemId}`),
+  updateItem: (itemId: string, body: { title?: string; fieldsJson?: string }): Promise<any> =>
+    req(`/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteItem: (itemId: string): Promise<null> =>
+    req(`/items/${itemId}`, { method: 'DELETE' }),
   replaceBlocks: (itemId: string, blocks: BlockInput[]): Promise<any> =>
     req(`/items/${itemId}/blocks`, { method: 'PUT', body: JSON.stringify({ blocks }) }),
 }

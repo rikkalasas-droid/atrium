@@ -1,7 +1,7 @@
 import {
   Sparkles, Link2, StickyNote, BarChart3, Calendar, Users,
   MousePointerClick, Clock, Plus, X, Shapes,
-  Type, Image as ImageIcon, Code2, Minus, ExternalLink,
+  Type, Image as ImageIcon, Code2, Minus, ExternalLink, FileText,
   Star, Heart, Flag, CheckCircle2, Rocket, Zap, Bell, Mail,
   MapPin, Briefcase, Award, Target, Coffee, Lightbulb, Smile, Phone,
 } from 'lucide-react'
@@ -13,6 +13,11 @@ export type TileKind =
   | 'banner' | 'links' | 'note' | 'metric' | 'events' | 'people' | 'button' | 'timeline' | 'custom'
 
 export type FontCfg = { family?: FontKey; weight?: number; scale?: number }
+
+// a page in the current space (used for navigation + internal links)
+export type PageRef = { id: string; title: string }
+// nav context threaded into tiles so link/button elements can jump between pages
+export type NavCtx = { pages: PageRef[]; onNavigate: (id: string) => void }
 
 export type Tile = {
   uid: string
@@ -98,6 +103,7 @@ export type Element = {
   variant?: 'filled' | 'outline'    // button style
   icon?: IconKey                    // icon element / per-step icon
   morph?: MorphKey                  // optional surface style around this element
+  pageId?: string                   // link/button: navigate to this page instead of a URL
 }
 
 export const ELEMENT_KINDS: { t: ElKind; label: string; Icon: any }[] = [
@@ -446,8 +452,8 @@ function KindBody({ tile, editable, onEdit }:
 }
 
 // ---- render one freeform element (optionally wrapped in a morph surface) ----
-function renderEl(el: Element, a: string) {
-  const inner = elContent(el, a)
+function renderEl(el: Element, a: string, nav?: NavCtx) {
+  const inner = elContent(el, a, nav)
   if (!el.morph) return inner
   return (
     <div className={el.morph === 'disco' ? 'morph-disco' : ''}
@@ -456,7 +462,10 @@ function renderEl(el: Element, a: string) {
     </div>
   )
 }
-function elContent(el: Element, a: string) {
+function elContent(el: Element, a: string, nav?: NavCtx) {
+  // link/button can target a page (internal nav) instead of a URL
+  const page = el.pageId ? nav?.pages.find((p) => p.id === el.pageId) : undefined
+  const goPage = (e: { preventDefault: () => void }) => { e.preventDefault(); if (el.pageId) nav?.onNavigate(el.pageId) }
   switch (el.t) {
     case 'heading':
       return <div style={{ fontFamily: DISPLAY, fontSize: 17, fontWeight: 700, color: C.ink, letterSpacing: -0.2 }}>{el.text}</div>
@@ -472,20 +481,22 @@ function elContent(el: Element, a: string) {
         : <div style={{ border: `1px dashed ${C.line}`, borderRadius: 10, padding: 16, fontSize: 12, color: C.faint, textAlign: 'center' }}>No embed URL</div>
     case 'link':
       return (
-        <a href={el.url || '#'} target="_blank" rel="noreferrer"
+        <a href={page ? '#' : (el.url || '#')} onClick={page ? goPage : undefined}
+          target={page ? undefined : '_blank'} rel="noreferrer"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: a, fontSize: 13.5, fontWeight: 600, textDecoration: 'none' }}>
-          <ExternalLink size={14} /> {el.text || el.url}
+          {page ? <FileText size={14} /> : <ExternalLink size={14} />} {el.text || page?.title || el.url}
         </a>
       )
     case 'button': {
       const outline = el.variant === 'outline'
       return (
-        <a href={el.url || '#'} target="_blank" rel="noreferrer"
+        <a href={page ? '#' : (el.url || '#')} onClick={page ? goPage : undefined}
+          target={page ? undefined : '_blank'} rel="noreferrer"
           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, textDecoration: 'none',
             background: outline ? 'transparent' : a, color: outline ? a : '#fff',
             border: outline ? `1.5px solid ${a}` : '1.5px solid transparent',
             borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 600 }}>
-          <MousePointerClick size={14} /> {el.text}
+          {page ? <FileText size={14} /> : <MousePointerClick size={14} />} {el.text || page?.title || 'Button'}
         </a>
       )
     }
@@ -506,8 +517,8 @@ function elContent(el: Element, a: string) {
 }
 
 // ---- editor row for one element ----
-function ElEditor({ el, onChange, onRemove }:
-  { el: Element; onChange: (patch: Partial<Element>) => void; onRemove: () => void }) {
+function ElEditor({ el, onChange, onRemove, pages }:
+  { el: Element; onChange: (patch: Partial<Element>) => void; onRemove: () => void; pages: PageRef[] }) {
   const { Icon, label } = ELEMENT_KINDS.find((k) => k.t === el.t)!
   return (
     <div style={{ border: `1px solid ${C.line}`, borderRadius: 9, padding: 8, background: '#fff', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -529,10 +540,19 @@ function ElEditor({ el, onChange, onRemove }:
         </>
       )}
       {(el.t === 'link' || el.t === 'button') && (
-        <div style={{ display: 'flex', gap: 6 }}>
+        <>
           <Inp value={el.text ?? ''} ph="Label" onChange={(v) => onChange({ text: v })} />
-          <div style={{ flex: 1 }}><Inp value={el.url ?? ''} ph="https://…" onChange={(v) => onChange({ url: v })} /></div>
-        </div>
+          {pages.length > 0 && (
+            <select data-control value={el.pageId ?? ''} onPointerDown={(e) => e.stopPropagation()}
+              onChange={(e) => onChange({ pageId: e.target.value || undefined })}
+              style={{ border: `1px solid ${C.line}`, borderRadius: 6, padding: '4px 7px', fontSize: 11.5,
+                color: C.soft, background: '#fff', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}>
+              <option value="">Link to: a URL</option>
+              {pages.map((p) => <option key={p.id} value={p.id}>Go to page: {p.title}</option>)}
+            </select>
+          )}
+          {!el.pageId && <Inp value={el.url ?? ''} ph="https://…" onChange={(v) => onChange({ url: v })} />}
+        </>
       )}
       {el.t === 'button' && (
         <div style={{ display: 'flex', gap: 6 }}>
@@ -561,8 +581,8 @@ function ElMorph({ value, onChange }: { value?: MorphKey; onChange: (m: MorphKey
 }
 
 // ---- freeform elements section (under every tile) ----
-function Elements({ tile, editable, onEdit }:
-  { tile: Tile; editable: boolean; onEdit: (patch: any) => void }) {
+function Elements({ tile, editable, onEdit, nav }:
+  { tile: Tile; editable: boolean; onEdit: (patch: any) => void; nav?: NavCtx }) {
   const els: Element[] = tile.data?.elements ?? []
   const setEls = (next: Element[]) => onEdit({ elements: next })
   if (!editable && els.length === 0) return null
@@ -570,11 +590,11 @@ function Elements({ tile, editable, onEdit }:
     <div style={{ display: 'flex', flexDirection: 'column', gap: editable ? 8 : 10,
       marginTop: tile.kind === 'custom' ? 0 : (els.length || editable ? 12 : 0) }}>
       {els.map((el, i) => editable ? (
-        <ElEditor key={el.id} el={el}
+        <ElEditor key={el.id} el={el} pages={nav?.pages ?? []}
           onChange={(patch) => setEls(els.map((x, j) => (j === i ? { ...x, ...patch } : x)))}
           onRemove={() => setEls(els.filter((_, j) => j !== i))} />
       ) : (
-        <div key={el.id}>{renderEl(el, tile.accent)}</div>
+        <div key={el.id}>{renderEl(el, tile.accent, nav)}</div>
       ))}
       {editable && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -590,12 +610,12 @@ function Elements({ tile, editable, onEdit }:
 }
 
 // ---- full tile body: kind content + freeform elements ----
-export function TileBody({ tile, editable, onEdit }:
-  { tile: Tile; editable: boolean; onEdit: (patch: any) => void }) {
+export function TileBody({ tile, editable, onEdit, nav }:
+  { tile: Tile; editable: boolean; onEdit: (patch: any) => void; nav?: NavCtx }) {
   return (
     <div style={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
       <KindBody tile={tile} editable={editable} onEdit={onEdit} />
-      <Elements tile={tile} editable={editable} onEdit={onEdit} />
+      <Elements tile={tile} editable={editable} onEdit={onEdit} nav={nav} />
     </div>
   )
 }

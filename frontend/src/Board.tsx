@@ -1,17 +1,27 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { LayoutGrid, Trash2, Check, Move } from 'lucide-react'
+import { LayoutGrid, Trash2, Check, Move, Plus, FileText } from 'lucide-react'
 import { C, ACCENTS, DISPLAY, hexA } from './theme'
 import { api } from './api'
 import {
   Tile, TileKind, TileBody, KIND_META, blockToTile, tileToBlock, newTile,
-  packLayout, fontStyle, COLS, TINTS, FONTS, FontKey,
+  packLayout, fontStyle, COLS, TINTS, FONTS, FontKey, PageRef,
 } from './tiles'
 import { MorphKey, MORPHS, morphCard, morphBoard } from './morph'
+
+type BoardProps = {
+  itemId: string; spaceName: string
+  pages: PageRef[]; currentId: string
+  onNavigate: (id: string) => void
+  onNewPage: () => void
+  onRenamePage: (id: string, title: string) => void
+  onDeletePage: (id: string) => void
+}
 
 const GAP = 14
 const CELL_H = 110
 
-export default function Board({ itemId, spaceName }: { itemId: string; spaceName: string }) {
+export default function Board({ itemId, spaceName, pages, currentId,
+  onNavigate, onNewPage, onRenamePage, onDeletePage }: BoardProps) {
   const [tiles, setTiles] = useState<Tile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -125,6 +135,7 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
   const onResizeUp = () => { if (rsz.current) { rsz.current = null; setActive(null) } }
 
   const selected = tiles.find((t) => t.uid === selectedUid) || null
+  const curPage = pages.find((p) => p.id === currentId) || null
 
   // fractional layout: cell width from measured canvas; tiles sized in px
   const CW = gw > 0 ? (gw - GAP * (COLS - 1)) / COLS : 150
@@ -154,6 +165,28 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
           height: '100vh', overflowY: 'auto', background: '#fff', borderRight: `1px solid ${C.line}`, padding: 16 }}>
           <div style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Build</div>
           <div style={{ fontSize: 12, color: C.faint, marginBottom: 14 }}>Add tiles, then move, resize & style.</div>
+
+          <Section label="Page">
+            <input value={curPage?.title ?? ''} placeholder="Page name"
+              onChange={(e) => curPage && onRenamePage(curPage.id, e.target.value)}
+              style={{ width: '100%', border: `1px solid ${C.line}`, borderRadius: 8, padding: '7px 9px',
+                fontSize: 13, fontWeight: 600, color: C.ink, outline: 'none', marginBottom: 8 }} />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={onNewPage} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: 6, padding: '8px', borderRadius: 9, border: `1px solid ${C.line}`, background: '#fff',
+                cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: C.ink }}>
+                <Plus size={14} /> New page
+              </button>
+              <button onClick={() => curPage && onDeletePage(curPage.id)} disabled={pages.length <= 1}
+                title={pages.length <= 1 ? 'Keep at least one page' : 'Delete this page'}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 11px',
+                  borderRadius: 9, border: '1px solid #FECACA', background: '#FEF2F2',
+                  color: pages.length <= 1 ? '#FCA5A5' : '#DC2626',
+                  cursor: pages.length <= 1 ? 'not-allowed' : 'pointer' }}>
+                <Trash2 size={15} />
+              </button>
+            </div>
+          </Section>
 
           <Section label="Add a tile">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}>
@@ -258,6 +291,29 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
               <LayoutGrid size={15} />{arrange ? 'Done' : 'Arrange'}
             </button>
           </div>
+
+          {/* ---- page navigation ---- */}
+          <nav style={{ maxWidth: 1320, margin: '0 auto', padding: '0 18px 9px', display: 'flex',
+            alignItems: 'center', gap: 6, overflowX: 'auto' }}>
+            {pages.map((p) => {
+              const on = p.id === currentId
+              return (
+                <button key={p.id} onClick={() => onNavigate(p.id)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: '0 0 auto',
+                    border: `1px solid ${on ? C.indigo : C.line}`, background: on ? C.isoft : '#fff',
+                    color: on ? C.indigoDk : C.soft, borderRadius: 9, padding: '6px 11px',
+                    fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+                  <FileText size={13} /> {p.title || 'Untitled'}
+                </button>
+              )
+            })}
+            <button onClick={onNewPage} title="New page"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flex: '0 0 auto',
+                border: `1px dashed ${C.line}`, background: '#fff', color: C.soft, borderRadius: 9,
+                padding: '6px 10px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+              <Plus size={13} /> Page
+            </button>
+          </nav>
         </header>
 
         <main style={{ maxWidth: 1320, margin: '0 auto', padding: 18 }}>
@@ -300,7 +356,8 @@ export default function Board({ itemId, spaceName }: { itemId: string; spaceName
                     }}>
                     <div style={{ position: 'absolute', left: 0, top: 14, width: 3, height: 22, borderRadius: 3, background: tile.accent }} />
                     <div style={{ height: '100%', ...fontStyle(tile.font) }}>
-                      <TileBody tile={tile} editable={arrange} onEdit={(p) => editData(tile.uid, p)} />
+                      <TileBody tile={tile} editable={arrange} onEdit={(p) => editData(tile.uid, p)}
+                        nav={{ pages, onNavigate }} />
                     </div>
                     {arrange && (
                       <>

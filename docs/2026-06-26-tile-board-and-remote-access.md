@@ -69,6 +69,21 @@ rides inside a tile's `ContentJson.data`.
   config block passes type validation. Stored as a string column (no
   migration needed — appending an enum member is backward-compatible).
 
+### e. Pages — navigation & internal links  (commit pending)
+- The workspace is now multi-page. A "page" = an Item (type `Page`) in the
+  space; the backend already supported create / rename (`PATCH /items/{id}`) /
+  soft-delete (`DELETE /items/{id}`), so this was frontend-only.
+- `App.tsx` rewritten to load all pages, hold `currentId`, and create / rename /
+  delete pages. `Board` is keyed by `currentId` so switching remounts cleanly.
+- **Navigation bar** in the header: a tab per page (active highlighted) plus a
+  `+ Page` button. Inspector gains a **Page** section (rename field, New page,
+  Delete page — delete disabled when only one page remains).
+- **Internal links:** link & button elements gain an optional `pageId`. In the
+  element editor a "Go to page: …" dropdown targets another page; in live mode
+  clicking navigates in-app (via a `NavCtx` threaded through TileBody →
+  Elements → renderEl) instead of opening a URL. Falls back to URL when no
+  page is chosen.
+
 ### Verification done (headless, server-side)
 - Frontend build clean each time (`tsc -b && vite build`, ~190 KB bundle).
 - Deployed via `~/atrium_deploy.sh` (build+push to `localhost:5000`, compose up

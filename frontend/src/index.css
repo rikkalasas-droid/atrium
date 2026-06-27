@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:wght@400;500;600;700&display=swap');
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: linear-gradient(160deg, #F4F4FA, #ECECF6);
+  color: #1A1A2E;
+}
+
+/* free-placement canvas: tiles are absolutely positioned (fractional sizes) */
+.atr-grid { position: relative; width: 100%; min-height: 320px; }
+
+.atr-tile { transition: box-shadow .18s ease, transform .18s ease; }
+
+/* disco morphism: animated rainbow border, readable light inner surface */
+.morph-disco {
+  border: 2px solid transparent !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(var(--disco-surface, #fff), var(--disco-surface, #fff)) padding-box,
+    linear-gradient(90deg,#ff2d55,#ff9500,#ffcc00,#34c759,#5ac8fa,#af52de,#ff2d55) border-box !important;
+  background-size: auto, 300% 100% !important;
+  box-shadow: 0 10px 30px -16px rgba(0,0,0,.4) !important;
+  animation: discoshift 5s linear infinite;
+}
+@keyframes discoshift { to { background-position: 0 0, 300% 0; } }
+@media (prefers-reduced-motion: reduce) { .morph-disco { animation: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .atr-tile.canhover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(26,26,46,.06), 0 22px 40px -22px rgba(26,26,46,.28);
+  }
+}
+.atr-row:hover { background: #EEF; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #d3d3ea; border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }

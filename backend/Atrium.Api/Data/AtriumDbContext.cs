@@ -93,9 +93,12 @@ public class AtriumDbContext : DbContext
         b.Entity<StoredFile>(e =>
         {
             e.HasIndex(x => x.ItemId);
+            e.HasIndex(x => x.BlockId);
+            e.Property(x => x.FileName).HasMaxLength(400);
             e.Property(x => x.StorageProvider).HasMaxLength(20);
             e.Property(x => x.StorageKey).HasMaxLength(1024);
             e.Property(x => x.ContentType).HasMaxLength(200);
+            e.Property(x => x.Status).HasMaxLength(20);
         });
 
         // ---- ResourceGrant ----

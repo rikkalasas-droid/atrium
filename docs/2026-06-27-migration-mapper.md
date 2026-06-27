@@ -27,11 +27,25 @@ that BYO storage is live to receive bytes.
 - **`samples/migration/contoso-hr.json`** — the HR fixture, committed as the
   reference input / test target.
 
-## Naming gotcha
-The folder is `Migration/` but the namespace is **`Atrium.Api.MigrationEngine`** —
-a singular `Atrium.Api.Migration` namespace shadows EF Core's `Migration` base
-type used by the generated classes in `Atrium.Api.Migrations` (build error
-CS0118). Renamed to avoid the clash.
+## Naming: why `MigrationEngine`, not `Migration`
+Folder **and** namespace are `MigrationEngine` (`Atrium.Api.MigrationEngine`) —
+deliberately, not as a workaround.
+
+The literal name `Migration` is unusable as a namespace leaf in this assembly.
+C# resolves an unqualified name by climbing enclosing namespaces, and a visible
+*namespace* member beats a `using`-imported *type*. EF Core's generated classes
+live in `Atrium.Api.Migrations` and reference the base type as bare `Migration`
+(`: Migration`, `[Migration("…")]`). If a namespace `…​.Migration` exists, the
+climb hits it at the `Atrium.Api` (or `Atrium`) level and binds `Migration` to
+the namespace → CS0118 ("namespace used like a type"). This holds whether that
+namespace is in-project **or in a referenced `Atrium.Migration` assembly**
+(namespaces merge across references) — so the design doc's `Atrium.Migration`
+name would hit the same wall.
+
+The only way to keep the literal `Migration` would be to fully-qualify
+`Microsoft.EntityFrameworkCore.Migrations.Migration` in every generated migration
+file — which silently re-breaks on every `dotnet ef migrations add`. So the
+correct fix is a non-colliding, self-describing leaf with folder == namespace.
 
 ## Verified (matches the Python reference exactly)
 `POST /api/migration/assess` with the HR fixture returns:

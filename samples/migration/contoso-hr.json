@@ -1,0 +1,180 @@
+{
+  "site": {
+    "id": "contoso.sharepoint.com,1a2b,3c4d",
+    "url": "https://contoso.sharepoint.com/sites/HR",
+    "title": "Human Resources",
+    "description": "HR policies, onboarding, and templates.",
+    "sourceSystem": "SharePointOnline"
+  },
+  "principals": [
+    { "login": "i:0#.f|membership|jane.doe@contoso.com", "displayName": "Jane Doe", "email": "jane.doe@contoso.com", "type": "User" },
+    { "login": "i:0#.f|membership|sam.lee@contoso.com", "displayName": "Sam Lee", "email": "sam.lee@contoso.com", "type": "User" },
+    { "login": "c:0+.w|s-1-5-21-hr-readers", "displayName": "HR Readers", "email": null, "type": "SecurityGroup" },
+    { "login": "HR Site Members", "displayName": "HR Site Members", "email": null, "type": "SharePointGroup" }
+  ],
+  "libraries": [
+    {
+      "id": "lib-hrdocs",
+      "title": "HR Documents",
+      "serverRelativeUrl": "/sites/HR/HRDocuments",
+      "rootHasUniquePermissions": false,
+      "roleAssignments": [],
+      "columns": [
+        { "internalName": "Title", "displayName": "Title", "type": "Text", "readOnly": false, "required": false },
+        { "internalName": "Department", "displayName": "Department", "type": "Choice", "readOnly": false, "required": false },
+        { "internalName": "PolicyOwner", "displayName": "Policy Owner", "type": "User", "readOnly": false, "required": false },
+        { "internalName": "Region", "displayName": "Region", "type": "TaxonomyFieldType", "termSetId": "9b1c-region-termset", "readOnly": false, "required": false },
+        { "internalName": "RelatedPolicy", "displayName": "Related Policy", "type": "Lookup", "lookupList": "Policies", "readOnly": false, "required": false },
+        { "internalName": "ReviewDate", "displayName": "Review Date", "type": "DateTime", "readOnly": false, "required": false },
+        { "internalName": "DocStatus", "displayName": "Status", "type": "Choice", "readOnly": false, "required": false },
+        { "internalName": "ComplianceScore", "displayName": "Compliance Score", "type": "Calculated", "readOnly": true, "required": false }
+      ],
+      "documents": [
+        {
+          "id": "doc-leave",
+          "name": "Leave-Policy.docx",
+          "serverRelativeUrl": "/sites/HR/HRDocuments/Policies/2024/Leave-Policy.docx",
+          "folderPath": "Policies/2024",
+          "size": 248122,
+          "contentHash": "sha1:aa11",
+          "created": "2023-02-10T09:00:00Z",
+          "modified": "2024-05-02T14:21:00Z",
+          "createdBy": "i:0#.f|membership|sam.lee@contoso.com",
+          "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com",
+          "checkedOutBy": null,
+          "hasUniquePermissions": false,
+          "roleAssignments": [],
+          "fields": {
+            "Title": "Annual Leave Policy",
+            "Department": "People Ops",
+            "PolicyOwner": { "login": "i:0#.f|membership|jane.doe@contoso.com", "displayName": "Jane Doe", "email": "jane.doe@contoso.com" },
+            "Region": { "label": "EMEA", "termGuid": "f3a1-emea-guid", "termSetId": "9b1c-region-termset" },
+            "RelatedPolicy": { "lookupId": 14, "value": "Remote Work Policy" },
+            "ReviewDate": "2025-02-01T00:00:00Z",
+            "DocStatus": "Published",
+            "ComplianceScore": "92"
+          },
+          "versions": [
+            { "label": "1.0", "modified": "2023-02-10T09:00:00Z", "modifiedBy": "i:0#.f|membership|sam.lee@contoso.com", "size": 210334, "isCurrent": false, "comment": "Initial" },
+            { "label": "2.0", "modified": "2023-11-15T11:30:00Z", "modifiedBy": "i:0#.f|membership|sam.lee@contoso.com", "size": 233019, "isCurrent": false, "comment": "Annual update" },
+            { "label": "3.0", "modified": "2024-05-02T14:21:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 248122, "isCurrent": true, "comment": "2024 revision" }
+          ]
+        },
+        {
+          "id": "doc-conduct",
+          "name": "Code-of-Conduct.pdf",
+          "serverRelativeUrl": "/sites/HR/HRDocuments/Policies/2024/Code-of-Conduct.pdf",
+          "folderPath": "Policies/2024",
+          "size": 512440,
+          "contentHash": "sha1:bb22",
+          "created": "2022-01-05T08:00:00Z",
+          "modified": "2024-03-19T10:05:00Z",
+          "createdBy": "i:0#.f|membership|jane.doe@contoso.com",
+          "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com",
+          "checkedOutBy": "i:0#.f|membership|sam.lee@contoso.com",
+          "hasUniquePermissions": true,
+          "roleAssignments": [
+            { "principal": { "login": "c:0+.w|s-1-5-21-hr-readers", "displayName": "HR Readers", "type": "SecurityGroup" }, "roles": ["Read"] },
+            { "principal": { "login": "i:0#.f|membership|jane.doe@contoso.com", "displayName": "Jane Doe", "type": "User" }, "roles": ["Full Control"] },
+            { "principal": { "login": "i:0#.f|membership|sam.lee@contoso.com", "displayName": "Sam Lee", "type": "User" }, "roles": ["Limited Access"] }
+          ],
+          "fields": {
+            "Title": "Code of Conduct",
+            "Department": "Legal",
+            "Region": { "label": "Global", "termGuid": "0000-global-guid", "termSetId": "9b1c-region-termset" },
+            "DocStatus": "Published"
+          },
+          "versions": [
+            { "label": "1.0", "modified": "2022-01-05T08:00:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 480112, "isCurrent": false },
+            { "label": "2.0", "modified": "2022-09-01T08:00:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 489221, "isCurrent": false },
+            { "label": "3.0", "modified": "2023-04-12T08:00:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 501887, "isCurrent": false },
+            { "label": "4.0", "modified": "2023-10-30T08:00:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 509004, "isCurrent": false },
+            { "label": "5.0", "modified": "2024-03-19T10:05:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 512440, "isCurrent": true }
+          ]
+        },
+        {
+          "id": "doc-welcome",
+          "name": "Welcome.docx",
+          "serverRelativeUrl": "/sites/HR/HRDocuments/Onboarding/Welcome.docx",
+          "folderPath": "Onboarding",
+          "size": 88210,
+          "contentHash": "sha1:cc33",
+          "created": "2024-06-01T08:00:00Z",
+          "modified": "2024-06-01T08:00:00Z",
+          "createdBy": "i:0#.f|membership|sam.lee@contoso.com",
+          "modifiedBy": "i:0#.f|membership|sam.lee@contoso.com",
+          "checkedOutBy": null,
+          "hasUniquePermissions": true,
+          "roleAssignments": [
+            { "principal": { "login": "HR Site Members", "displayName": "HR Site Members", "type": "SharePointGroup" }, "roles": ["HR Approver"] }
+          ],
+          "fields": {
+            "Title": "New Hire Welcome",
+            "Department": "People Ops",
+            "RelatedPolicy": { "lookupId": 99, "value": "(orphaned)" },
+            "DocStatus": "Draft"
+          },
+          "versions": [
+            { "label": "0.1", "modified": "2024-06-01T08:00:00Z", "modifiedBy": "i:0#.f|membership|sam.lee@contoso.com", "size": 88210, "isCurrent": true, "comment": "Draft" }
+          ]
+        },
+        {
+          "id": "doc-handbook",
+          "name": "Old-Handbook.doc",
+          "serverRelativeUrl": "/sites/HR/HRDocuments/Archive/Old-Handbook.doc",
+          "folderPath": "Archive",
+          "size": 1340000,
+          "contentHash": "sha1:dd44",
+          "created": "2015-03-01T08:00:00Z",
+          "modified": "2021-08-01T08:00:00Z",
+          "createdBy": "i:0#.f|membership|jane.doe@contoso.com",
+          "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com",
+          "checkedOutBy": null,
+          "hasUniquePermissions": false,
+          "roleAssignments": [],
+          "fields": { "Title": "Employee Handbook (Legacy)", "Department": "People Ops", "DocStatus": "Archived" },
+          "versions": [
+            { "label": "1.0", "modified": "2015-03-01T08:00:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 900000, "isCurrent": false },
+            { "label": "2.0", "modified": "2016-03-01T08:00:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 950000, "isCurrent": false },
+            { "label": "3.0", "modified": "2017-03-01T08:00:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 1000000, "isCurrent": false },
+            { "label": "4.0", "modified": "2018-03-01T08:00:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 1100000, "isCurrent": false },
+            { "label": "5.0", "modified": "2019-03-01T08:00:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 1200000, "isCurrent": false },
+            { "label": "6.0", "modified": "2020-03-01T08:00:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 1300000, "isCurrent": false },
+            { "label": "7.0", "modified": "2021-08-01T08:00:00Z", "modifiedBy": "i:0#.f|membership|jane.doe@contoso.com", "size": 1340000, "isCurrent": true }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lib-templates",
+      "title": "Shared Templates",
+      "serverRelativeUrl": "/sites/HR/Templates",
+      "rootHasUniquePermissions": false,
+      "roleAssignments": [],
+      "columns": [
+        { "internalName": "Title", "displayName": "Title", "type": "Text", "readOnly": false, "required": false }
+      ],
+      "documents": [
+        {
+          "id": "doc-offer",
+          "name": "Offer-Letter-Template.docx",
+          "serverRelativeUrl": "/sites/HR/Templates/Offer-Letter-Template.docx",
+          "folderPath": "",
+          "size": 45120,
+          "contentHash": "sha1:ee55",
+          "created": "2023-01-01T08:00:00Z",
+          "modified": "2023-01-01T08:00:00Z",
+          "createdBy": "i:0#.f|membership|sam.lee@contoso.com",
+          "modifiedBy": "i:0#.f|membership|sam.lee@contoso.com",
+          "checkedOutBy": null,
+          "hasUniquePermissions": false,
+          "roleAssignments": [],
+          "fields": { "Title": "Offer Letter Template" },
+          "versions": [
+            { "label": "1.0", "modified": "2023-01-01T08:00:00Z", "modifiedBy": "i:0#.f|membership|sam.lee@contoso.com", "size": 45120, "isCurrent": true }
+          ]
+        }
+      ]
+    }
+  ]
+}

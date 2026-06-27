@@ -80,4 +80,7 @@ app.MapImportEndpoints();
 // ---- BYO storage: signed-URL upload/download + admin self-test ----
 app.MapStorageEndpoints();
 
+// ---- SharePoint migration: pre-flight assessment (plan + fidelity) ----
+app.MapMigrationEndpoints();
+
 app.Run();
